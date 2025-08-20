@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: myf-postgres
+    environment:
+      POSTGRES_USER: myf_user
+      POSTGRES_PASSWORD: myf_password
+      POSTGRES_DB: markyourfish
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - myf-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myf_user -d markyourfish"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:latest
+    container_name: myf-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - myf-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: ./docker/server.Dockerfile
+    container_name: myf-server
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://myf_user:myf_password@postgres:5432/markyourfish
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your_jwt_secret_here
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    networks:
+      - myf-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: npm run dev
+
+  client:
+    build:
+      context: .
+      dockerfile: ./docker/client.Dockerfile
+    container_name: myf-client
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      VITE_API_URL: http://localhost:3001
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    networks:
+      - myf-network
+    depends_on:
+      - server
+    command: npm run dev
+
+networks:
+  myf-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
