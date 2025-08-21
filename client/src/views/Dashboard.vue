@@ -123,7 +123,10 @@
                   :key="catch_.id"
                   :catchData="catch_"
                   variant="list"
-                  @click="openCatchDetails"
+                  :showActions="true"
+                  @view="openCatchView"
+                  @edit="openCatchEdit"
+                  @delete="openDeleteConfirmation"
                 />
               </div>
             </div>
@@ -195,7 +198,8 @@
       </div>
     </div>
 
-    <!-- Catch Details Modal -->
+    <!-- Modals -->
+    <!-- Edit Modal -->
     <LogCatchModal
       :isOpen="showCatchModal"
       :mode="modalMode"
@@ -205,6 +209,24 @@
       @save="handleCatchUpdate"
       @delete="handleCatchDelete"
       @mode-changed="handleModeChanged"
+    />
+
+    <!-- View Modal -->
+    <CatchViewModal
+      :isOpen="showViewModal"
+      :catchData="selectedCatchData"
+      :coordinates="selectedCatchData?.coordinates"
+      @close="closeViewModal"
+      @edit="switchToEdit"
+      @delete="openDeleteConfirmation"
+    />
+
+    <!-- Delete Confirmation Modal -->
+    <DeleteConfirmationModal
+      :isOpen="showDeleteModal"
+      :catchData="selectedCatchData"
+      @close="closeDeleteModal"
+      @confirm="handleCatchDelete"
     />
     
   </div>
@@ -216,12 +238,16 @@ import { useAuthStore } from '@/store/auth'
 import { formatDate, getSpeciesColor } from '@/utils/helpers'
 import LogCatchModal from '@/components/maps/LogCatchModal.vue'
 import CatchCard from '@/components/common/CatchCard.vue'
+import CatchViewModal from '@/components/modals/CatchViewModal.vue'
+import DeleteConfirmationModal from '@/components/common/DeleteConfirmationModal.vue'
 
 export default {
   name: 'Dashboard',
   components: {
     LogCatchModal,
-    CatchCard
+    CatchCard,
+    CatchViewModal,
+    DeleteConfirmationModal
   },
   setup() {
     const authStore = useAuthStore()
@@ -236,7 +262,9 @@ export default {
 
     // Modal state management
     const showCatchModal = ref(false)
-    const modalMode = ref('view')
+    const showViewModal = ref(false)
+    const showDeleteModal = ref(false)
+    const modalMode = ref('edit')
     const selectedCatchData = ref(null)
 
     const user = computed(() => authStore.user)
@@ -288,7 +316,7 @@ export default {
     }
 
     // Modal handler functions
-    const openCatchDetails = (catch_) => {
+    const openCatchView = (catch_) => {
       selectedCatchData.value = {
         ...catch_,
         coordinates: {
@@ -296,14 +324,51 @@ export default {
           lng: parseFloat(catch_.longitude)
         }
       }
-      modalMode.value = 'view'
+      showViewModal.value = true
+    }
+
+    const openCatchEdit = (catch_) => {
+      selectedCatchData.value = {
+        ...catch_,
+        coordinates: {
+          lat: parseFloat(catch_.latitude),
+          lng: parseFloat(catch_.longitude)
+        }
+      }
+      modalMode.value = 'edit'
       showCatchModal.value = true
+    }
+
+    const openDeleteConfirmation = (catch_) => {
+      selectedCatchData.value = catch_
+      showDeleteModal.value = true
+    }
+
+    // Legacy handler for backward compatibility
+    const openCatchDetails = (catch_) => {
+      openCatchView(catch_)
     }
 
     const closeCatchModal = () => {
       showCatchModal.value = false
       selectedCatchData.value = null
-      modalMode.value = 'view'
+      modalMode.value = 'edit'
+    }
+
+    const closeViewModal = () => {
+      showViewModal.value = false
+      selectedCatchData.value = null
+    }
+
+    const closeDeleteModal = () => {
+      showDeleteModal.value = false
+      selectedCatchData.value = null
+    }
+
+    const switchToEdit = () => {
+      showViewModal.value = false
+      modalMode.value = 'edit'
+      showCatchModal.value = true
     }
 
     const handleCatchUpdate = async (updatedCatchData) => {
@@ -323,15 +388,29 @@ export default {
       }
     }
 
-    const handleCatchDelete = async (catchId) => {
+    const handleCatchDelete = async (catch_) => {
       try {
-        // Remove from local data
-        recentCatches.value = recentCatches.value.filter(c => c.id !== catchId)
+        const catchId = catch_?.id || selectedCatchData.value?.id
         
-        // Reload dashboard data to refresh statistics
-        await loadDashboardData()
-        
-        closeCatchModal()
+        const response = await fetch(`/api/catches/${catchId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authStore.token}`
+          }
+        })
+
+        if (response.ok) {
+          // Remove from local data
+          recentCatches.value = recentCatches.value.filter(c => c.id !== catchId)
+          
+          // Reload dashboard data to refresh statistics
+          await loadDashboardData()
+          
+          // Close all modals
+          closeDeleteModal()
+          closeCatchModal()
+          closeViewModal()
+        }
       } catch (error) {
         console.error('Error deleting catch:', error)
       }
@@ -365,13 +444,21 @@ export default {
       recentCatches,
       weather,
       showCatchModal,
+      showViewModal,
+      showDeleteModal,
       modalMode,
       selectedCatchData,
       getSpeciesColor,
       formatDate,
       getPhotoUrl,
+      openCatchView,
+      openCatchEdit,
+      openDeleteConfirmation,
       openCatchDetails,
       closeCatchModal,
+      closeViewModal,
+      closeDeleteModal,
+      switchToEdit,
       handleCatchUpdate,
       handleCatchDelete,
       handleModeChanged

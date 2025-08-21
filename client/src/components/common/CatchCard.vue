@@ -73,10 +73,38 @@
           </div>
         </div>
         
-        <!-- Right: Secondary info -->
-        <div class="text-right text-sm text-gray-500 ml-4 flex-shrink-0">
-          <div v-if="catchData.lure_type">{{ catchData.lure_type }}</div>
-          <div v-if="catchData.depth" class="text-xs">{{ catchData.depth }}ft</div>
+        <!-- Right: Secondary info and actions -->
+        <div class="flex items-center space-x-4 ml-4 flex-shrink-0">
+          <!-- Secondary info -->
+          <div v-if="!showActions" class="text-right text-sm text-gray-500">
+            <div v-if="catchData.lure_type">{{ catchData.lure_type }}</div>
+            <div v-if="catchData.depth" class="text-xs">{{ catchData.depth }}ft</div>
+          </div>
+          
+          <!-- Action buttons -->
+          <div v-if="showActions" class="flex space-x-2">
+            <button 
+              @click="handleView"
+              class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors duration-200"
+              title="View"
+            >
+              View
+            </button>
+            <button 
+              @click="handleEdit"
+              class="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors duration-200"
+              title="Edit"
+            >
+              Edit
+            </button>
+            <button 
+              @click="handleDelete"
+              class="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors duration-200"
+              title="Delete"
+            >
+              Delete
+            </button>
+          </div>
         </div>
       </div>
     </template>
@@ -84,7 +112,7 @@
     <!-- Full variant (Catches grid) -->
     <template v-else-if="variant === 'full'">
       <!-- Photo -->
-      <div class="aspect-w-16 aspect-h-12 bg-gray-200">
+      <div class="aspect-w-16 aspect-h-12 bg-gray-200 relative">
         <img 
           v-if="photoUrl"
           :src="photoUrl"
@@ -95,6 +123,43 @@
           <svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
+        </div>
+        
+        <!-- Action Buttons Overlay -->
+        <div 
+          v-if="showActions && actionPosition === 'overlay'"
+          class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200"
+        >
+          <div class="flex space-x-2">
+            <button 
+              @click="handleView"
+              class="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-1"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              <span>View</span>
+            </button>
+            <button 
+              @click="handleEdit"
+              class="px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors duration-200 flex items-center space-x-1"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+              <span>Edit</span>
+            </button>
+            <button 
+              @click="handleDelete"
+              class="px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors duration-200 flex items-center space-x-1"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              <span>Delete</span>
+            </button>
+          </div>
         </div>
       </div>
       <!-- Content -->
@@ -125,6 +190,31 @@
             <span class="font-medium">{{ catchData.lure_type }}</span>
           </div>
         </div>
+        
+        <!-- Action Buttons Bottom (Full Variant) -->
+        <div 
+          v-if="showActions && actionPosition === 'bottom'"
+          class="px-4 pb-4 flex justify-end space-x-2"
+        >
+          <button 
+            @click="handleView"
+            class="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors duration-200"
+          >
+            View
+          </button>
+          <button 
+            @click="handleEdit"
+            class="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors duration-200"
+          >
+            Edit
+          </button>
+          <button 
+            @click="handleDelete"
+            class="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors duration-200"
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </template>
   </div>
@@ -149,9 +239,18 @@ export default {
     clickable: {
       type: Boolean,
       default: true
+    },
+    showActions: {
+      type: Boolean,
+      default: false
+    },
+    actionPosition: {
+      type: String,
+      default: 'overlay',
+      validator: (value) => ['overlay', 'bottom'].includes(value)
     }
   },
-  emits: ['click'],
+  emits: ['click', 'view', 'edit', 'delete'],
   setup(props, { emit }) {
     // Get photo URL from photo_urls array
     const photoUrl = computed(() => {
@@ -186,10 +285,28 @@ export default {
       }
     }
 
+    const handleView = (event) => {
+      event.stopPropagation()
+      emit('view', props.catchData)
+    }
+
+    const handleEdit = (event) => {
+      event.stopPropagation()
+      emit('edit', props.catchData)
+    }
+
+    const handleDelete = (event) => {
+      event.stopPropagation()
+      emit('delete', props.catchData)
+    }
+
     return {
       photoUrl,
       cardClasses,
       handleClick,
+      handleView,
+      handleEdit,
+      handleDelete,
       formatDate,
       getSpeciesColor
     }
