@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const { setCached, getCached, deleteCached } = require('../config/redis');
 const router = express.Router();
 
 // Database connection
@@ -78,8 +79,8 @@ router.post('/register', validateRegistration, async (req, res) => {
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(userId);
 
-    // TODO: Store refresh token in database/Redis
-    // await redis.set(`refresh_token:${userId}`, refreshToken, 'EX', 7 * 24 * 60 * 60);
+    // Store refresh token in Redis (7 days expiration)
+    await setCached(`refresh_token:${userId}`, refreshToken, 7 * 24 * 60 * 60);
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -129,16 +130,22 @@ router.post('/login', validateLogin, async (req, res) => {
     // Generate tokens
     const { accessToken, refreshToken } = generateTokens(user.id);
 
-    // TODO: Store refresh token in database/Redis
-    // await redis.set(`refresh_token:${user.id}`, refreshToken, 'EX', 7 * 24 * 60 * 60);
+    // Store refresh token in Redis (7 days expiration)
+    await setCached(`refresh_token:${user.id}`, refreshToken, 7 * 24 * 60 * 60);
+
+    // Parse username to get first and last name
+    const nameParts = user.username ? user.username.split(' ') : ['', ''];
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
 
     res.json({
       message: 'Login successful',
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name
+        firstName: firstName,
+        lastName: lastName,
+        username: user.username
       },
       accessToken,
       refreshToken
@@ -162,17 +169,17 @@ router.post('/refresh', async (req, res) => {
     // Verify refresh token
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'your-refresh-secret');
     
-    // TODO: Check if refresh token exists in database/Redis
-    // const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
-    // if (storedToken !== refreshToken) {
-    //   return res.status(401).json({ error: 'Invalid refresh token' });
-    // }
+    // Check if refresh token exists in Redis
+    const storedToken = await getCached(`refresh_token:${decoded.userId}`);
+    if (!storedToken || storedToken !== refreshToken) {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
 
-    // Generate new tokens
+    // Generate new tokens (token rotation)
     const { accessToken, refreshToken: newRefreshToken } = generateTokens(decoded.userId);
 
-    // TODO: Update refresh token in database/Redis
-    // await redis.set(`refresh_token:${decoded.userId}`, newRefreshToken, 'EX', 7 * 24 * 60 * 60);
+    // Update refresh token in Redis (7 days expiration)
+    await setCached(`refresh_token:${decoded.userId}`, newRefreshToken, 7 * 24 * 60 * 60);
 
     res.json({
       accessToken,
@@ -199,8 +206,9 @@ router.post('/logout', async (req, res) => {
       try {
         const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'your-refresh-secret');
         
-        // TODO: Remove refresh token from database/Redis
-        // await redis.del(`refresh_token:${decoded.userId}`);
+        // Remove refresh token from Redis
+        await deleteCached(`refresh_token:${decoded.userId}`);
+        console.log(`Refresh token revoked for user ${decoded.userId}`);
         
       } catch (error) {
         // Token is invalid, but we still want to respond with success
@@ -235,12 +243,18 @@ router.get('/me', async (req, res) => {
     }
     const user = result.rows[0];
 
+    // Parse username to get first and last name
+    const nameParts = user.username ? user.username.split(' ') : ['', ''];
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
     res.json({
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name
+        firstName: firstName,
+        lastName: lastName,
+        username: user.username
       }
     });
 

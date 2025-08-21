@@ -4,9 +4,9 @@ import api from '@/services/api'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
-  const user = ref(null)
-  const token = ref(localStorage.getItem('access_token'))
-  const refreshToken = ref(localStorage.getItem('refresh_token'))
+  const user = ref(JSON.parse(localStorage.getItem('user') || 'null'))
+  const token = ref(localStorage.getItem('accessToken'))
+  const refreshToken = ref(localStorage.getItem('refreshToken'))
   const loading = ref(false)
 
   // Getters
@@ -24,8 +24,9 @@ export const useAuthStore = defineStore('auth', () => {
       refreshToken.value = newRefreshToken
       user.value = userData
 
-      localStorage.setItem('access_token', accessToken)
-      localStorage.setItem('refresh_token', newRefreshToken)
+      localStorage.setItem('accessToken', accessToken)
+      localStorage.setItem('refreshToken', newRefreshToken)
+      localStorage.setItem('user', JSON.stringify(userData))
 
       return { success: true }
     } catch (error) {
@@ -49,8 +50,9 @@ export const useAuthStore = defineStore('auth', () => {
       refreshToken.value = newRefreshToken
       user.value = newUser
 
-      localStorage.setItem('access_token', accessToken)
-      localStorage.setItem('refresh_token', newRefreshToken)
+      localStorage.setItem('accessToken', accessToken)
+      localStorage.setItem('refreshToken', newRefreshToken)
+      localStorage.setItem('user', JSON.stringify(newUser))
 
       return { success: true }
     } catch (error) {
@@ -76,8 +78,9 @@ export const useAuthStore = defineStore('auth', () => {
       refreshToken.value = null
       user.value = null
 
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('user')
     }
   }
 
@@ -89,12 +92,14 @@ export const useAuthStore = defineStore('auth', () => {
 
     try {
       const response = await api.post('/auth/refresh', {
-        refresh_token: refreshToken.value
+        refreshToken: refreshToken.value
       })
       
-      const { accessToken } = response.data
+      const { accessToken, refreshToken: newRefreshToken } = response.data
       token.value = accessToken
-      localStorage.setItem('access_token', accessToken)
+      refreshToken.value = newRefreshToken
+      localStorage.setItem('accessToken', accessToken)
+      localStorage.setItem('refreshToken', newRefreshToken)
 
       return true
     } catch (error) {
@@ -110,6 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await api.get('/auth/me')
       user.value = response.data.user
+      localStorage.setItem('user', JSON.stringify(response.data.user))
       return true
     } catch (error) {
       console.error('Fetch user profile error:', error)
@@ -124,20 +130,49 @@ export const useAuthStore = defineStore('auth', () => {
   function setAuth(accessToken, userData) {
     token.value = accessToken
     user.value = userData
-    localStorage.setItem('access_token', accessToken)
+    localStorage.setItem('accessToken', accessToken)
+    localStorage.setItem('user', JSON.stringify(userData))
   }
 
   // Initialize auth state
   async function initializeAuth() {
-    if (token.value) {
-      const success = await fetchUserProfile()
-      if (!success) {
-        // Try to refresh token
-        const refreshed = await refreshAccessToken()
-        if (refreshed) {
-          await fetchUserProfile()
+    loading.value = true
+    try {
+      if (token.value) {
+        console.log('Initializing auth with existing token')
+        const success = await fetchUserProfile()
+        if (!success) {
+          console.log('Profile fetch failed, attempting token refresh')
+          // Try to refresh token
+          const refreshed = await refreshAccessToken()
+          if (refreshed) {
+            console.log('Token refreshed successfully, fetching profile again')
+            await fetchUserProfile()
+          } else {
+            console.log('Token refresh failed, clearing auth state')
+            // Clear invalid tokens
+            token.value = null
+            refreshToken.value = null
+            user.value = null
+            localStorage.removeItem('accessToken')
+            localStorage.removeItem('refreshToken')
+            localStorage.removeItem('user')
+          }
         }
+      } else {
+        console.log('No token found, user not authenticated')
       }
+    } catch (error) {
+      console.error('Auth initialization error:', error)
+      // Clear potentially corrupted auth state
+      token.value = null
+      refreshToken.value = null
+      user.value = null
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('user')
+    } finally {
+      loading.value = false
     }
   }
 
