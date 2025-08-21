@@ -117,12 +117,12 @@
                   Mark your first catch
                 </router-link>
               </div>
-              <div v-else class="space-y-4">
+              <div v-else class="bg-white border border-gray-200 rounded-lg overflow-hidden">
                 <CatchCard
                   v-for="catch_ in recentCatches"
                   :key="catch_.id"
                   :catchData="catch_"
-                  variant="compact"
+                  variant="list"
                   @click="openCatchDetails"
                 />
               </div>
