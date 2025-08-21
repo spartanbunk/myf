@@ -172,57 +172,13 @@
 
       <!-- Grid View -->
       <div v-else-if="viewMode === 'grid'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <div 
-          v-for="catch_ in paginatedCatches" 
+        <CatchCard
+          v-for="catch_ in paginatedCatches"
           :key="catch_.id"
-          class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition duration-300 cursor-pointer"
-          @click="openCatchDetails(catch_)"
-        >
-          <!-- Photo -->
-          <div class="aspect-w-16 aspect-h-12 bg-gray-200">
-            <img 
-              v-if="getPhotoUrl(catch_)" 
-              :src="getPhotoUrl(catch_)" 
-              :alt="catch_.species"
-              class="w-full h-48 object-cover"
-            >
-            <div v-else class="w-full h-48 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-              <svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-              </svg>
-            </div>
-          </div>
-
-          <!-- Content -->
-          <div class="p-4">
-            <div class="flex items-center justify-between mb-2">
-              <h3 class="text-lg font-semibold text-gray-800">{{ catch_.species }}</h3>
-              <div 
-                class="w-4 h-4 rounded-full"
-                :style="{ backgroundColor: getSpeciesColor(catch_.species) }"
-              ></div>
-            </div>
-            
-            <div class="space-y-1 text-sm text-gray-600">
-              <div v-if="catch_.weight" class="flex justify-between">
-                <span>Weight:</span>
-                <span class="font-medium">{{ catch_.weight }} lbs</span>
-              </div>
-              <div v-if="catch_.length" class="flex justify-between">
-                <span>Length:</span>
-                <span class="font-medium">{{ catch_.length }} in</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Date:</span>
-                <span class="font-medium">{{ formatDate(catch_.date) }}</span>
-              </div>
-              <div v-if="catch_.lure_type" class="flex justify-between">
-                <span>Lure:</span>
-                <span class="font-medium">{{ catch_.lure_type }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+          :catchData="catch_"
+          variant="full"
+          @click="openCatchDetails"
+        />
       </div>
 
       <!-- List View -->
@@ -347,11 +303,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, getSpeciesColor } from '@/utils/helpers'
 import LogCatchModal from '@/components/maps/LogCatchModal.vue'
+import CatchCard from '@/components/common/CatchCard.vue'
 
 export default {
   name: 'Catches',
   components: {
-    LogCatchModal
+    LogCatchModal,
+    CatchCard
   },
   setup() {
     const authStore = useAuthStore()

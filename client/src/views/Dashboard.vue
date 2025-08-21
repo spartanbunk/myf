@@ -118,43 +118,13 @@
                 </router-link>
               </div>
               <div v-else class="space-y-4">
-                <div 
-                  v-for="catch_ in recentCatches" 
+                <CatchCard
+                  v-for="catch_ in recentCatches"
                   :key="catch_.id"
-                  class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-300 cursor-pointer"
-                  @click="openCatchDetails(catch_)"
-                >
-                  <div class="flex items-center">
-                    <!-- Photo thumbnail or species color indicator -->
-                    <div class="mr-3 flex-shrink-0">
-                      <img 
-                        v-if="getPhotoUrl(catch_)"
-                        :src="getPhotoUrl(catch_)"
-                        :alt="catch_.species"
-                        class="w-12 h-12 rounded-lg object-cover"
-                      >
-                      <div 
-                        v-else
-                        class="w-12 h-12 rounded-lg flex items-center justify-center"
-                        :style="{ backgroundColor: getSpeciesColor(catch_.species) }"
-                      >
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 class="font-medium text-gray-800">{{ catch_.species }}</h3>
-                      <p class="text-sm text-gray-600">
-                        {{ catch_.weight }}lb - {{ formatDate(catch_.date) }}
-                      </p>
-                    </div>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-sm text-gray-600">{{ catch_.lure_type }}</p>
-                    <p class="text-xs text-gray-500">{{ catch_.depth }}ft deep</p>
-                  </div>
-                </div>
+                  :catchData="catch_"
+                  variant="compact"
+                  @click="openCatchDetails"
+                />
               </div>
             </div>
           </div>
@@ -245,11 +215,13 @@ import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { formatDate, getSpeciesColor } from '@/utils/helpers'
 import LogCatchModal from '@/components/maps/LogCatchModal.vue'
+import CatchCard from '@/components/common/CatchCard.vue'
 
 export default {
   name: 'Dashboard',
   components: {
-    LogCatchModal
+    LogCatchModal,
+    CatchCard
   },
   setup() {
     const authStore = useAuthStore()
