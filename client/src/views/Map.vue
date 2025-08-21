@@ -9,6 +9,18 @@
             <p class="text-gray-600 mt-1">Click anywhere on the map to log a new catch</p>
           </div>
           <div class="flex gap-3 mt-4 sm:mt-0">
+            <button
+              @click="markCurrentLocation"
+              class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300 flex items-center"
+              :disabled="gettingLocation"
+            >
+              <svg v-if="!gettingLocation" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              <div v-if="gettingLocation" class="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+              {{ gettingLocation ? 'Getting Location...' : 'Mark Current Location' }}
+            </button>
             <router-link 
               to="/catches" 
               class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-300"
@@ -59,6 +71,7 @@
           <div>
             <h3 class="text-sm font-semibold text-blue-800 mb-1">How to Use</h3>
             <ul class="text-sm text-blue-700 space-y-1">
+              <li>• Click "Mark Current Location" to quickly log a catch at your current GPS position</li>
               <li>• Click anywhere on the map to mark a new catch location</li>
               <li>• Click on existing markers to view catch details</li>
               <li>• Use the filter button to show/hide specific fish species</li>
@@ -214,6 +227,7 @@ export default {
     const selectedCoordinates = ref(null)
     const selectedCatch = ref(null)
     const showSuccessToast = ref(false)
+    const gettingLocation = ref(false)
 
     const mapCenter = ref({ lat: 44.9778, lng: -93.2650 }) // Minneapolis, MN default
     const mapZoom = ref(10)
@@ -266,6 +280,57 @@ export default {
     const handleMapClick = (coordinates) => {
       selectedCoordinates.value = coordinates
       showLogCatchModal.value = true
+    }
+
+    const markCurrentLocation = () => {
+      if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser')
+        return
+      }
+
+      gettingLocation.value = true
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const coordinates = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          }
+          
+          console.log('Current location coordinates:', coordinates)
+          
+          // Open the modal with current coordinates
+          selectedCoordinates.value = coordinates
+          showLogCatchModal.value = true
+          gettingLocation.value = false
+        },
+        (error) => {
+          gettingLocation.value = false
+          
+          let errorMessage = 'Unable to get your location. '
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage += 'Please allow location access and try again.'
+              break
+            case error.POSITION_UNAVAILABLE:
+              errorMessage += 'Location information is unavailable.'
+              break
+            case error.TIMEOUT:
+              errorMessage += 'The request to get your location timed out.'
+              break
+            default:
+              errorMessage += 'An unknown error occurred.'
+          }
+          
+          alert(errorMessage)
+          console.error('Geolocation error:', error)
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      )
     }
 
     const handleMarkerClick = (catch_) => {
@@ -420,9 +485,11 @@ export default {
       selectedCoordinates,
       selectedCatch,
       showSuccessToast,
+      gettingLocation,
       mapCenter,
       mapZoom,
       handleMapClick,
+      markCurrentLocation,
       handleMarkerClick,
       closeLogCatchModal,
       closeDetailsModal,
