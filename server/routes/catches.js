@@ -457,32 +457,53 @@ router.get('/stats/summary', authenticateToken, async (req, res) => {
     // const avgWeightResult = await db.query('SELECT AVG(weight) FROM catches WHERE user_id = $1 AND weight IS NOT NULL', [req.userId]);
     // const biggestCatchResult = await db.query('SELECT * FROM catches WHERE user_id = $1 AND weight IS NOT NULL ORDER BY weight DESC LIMIT 1', [req.userId]);
 
-    // Mock stats for now
+    // Get total catches
+    const totalCatchesResult = await pool.query(
+      'SELECT COUNT(*) as count FROM catches WHERE user_id = $1', 
+      [req.userId]
+    );
+    const totalCatches = parseInt(totalCatchesResult.rows[0]?.count) || 0;
+
+    // Get this month's catches
+    const thisMonthResult = await pool.query(`
+      SELECT COUNT(*) as count 
+      FROM catches 
+      WHERE user_id = $1 
+      AND date >= DATE_TRUNC('month', CURRENT_DATE)
+      AND date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+    `, [req.userId]);
+    const thisMonth = parseInt(thisMonthResult.rows[0]?.count) || 0;
+
+    // Get favorite species (most caught)
+    const favoriteSpeciesResult = await pool.query(`
+      SELECT species, COUNT(*) as count 
+      FROM catches 
+      WHERE user_id = $1 AND species IS NOT NULL AND species != ''
+      GROUP BY species 
+      ORDER BY count DESC 
+      LIMIT 1
+    `, [req.userId]);
+    const favoriteSpecies = favoriteSpeciesResult.rows[0]?.species || 'N/A';
+
+    // Get biggest catch (by weight)
+    const biggestCatchResult = await pool.query(`
+      SELECT weight 
+      FROM catches 
+      WHERE user_id = $1 AND weight IS NOT NULL AND weight > 0
+      ORDER BY weight DESC 
+      LIMIT 1
+    `, [req.userId]);
+    const biggestCatch = parseFloat(biggestCatchResult.rows[0]?.weight) || 0;
+
     const stats = {
-      totalCatches: 25,
-      uniqueSpecies: 8,
-      averageWeight: 2.3,
-      totalWeight: 57.5,
-      biggestCatch: {
-        species: 'Bass',
-        weight: 5.2,
-        location: 'Lake Superior',
-        date: '2024-01-01T12:00:00Z'
-      },
-      catchesByMonth: {
-        '2024-01': 5,
-        '2024-02': 8,
-        '2024-03': 12
-      },
-      topSpecies: [
-        { species: 'Bass', count: 10 },
-        { species: 'Trout', count: 8 },
-        { species: 'Pike', count: 4 },
-        { species: 'Walleye', count: 3 }
-      ]
+      totalCatches,
+      thisMonth,
+      favoriteSpecies,
+      biggestCatch
     };
 
-    res.json({ stats });
+    console.log('Dashboard stats calculated:', stats);
+    res.json(stats);
 
   } catch (error) {
     console.error('Get catch stats error:', error);
