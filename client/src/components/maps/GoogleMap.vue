@@ -106,6 +106,7 @@ export default {
     const error = ref(null)
     const showFilters = ref(false)
     const activeFilters = ref([])
+    const userLocationCentered = ref(false)
 
     const fishSpecies = [
       'Musky', 'Pike', 'Bass(Smallmouth)', 'Bass(Largemouth)', 
@@ -130,6 +131,45 @@ export default {
       return speciesColors[species] || speciesColors['Other']
     }
 
+    // Get user's current position using geolocation API
+    const getCurrentPosition = () => {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation is not supported by this browser'))
+          return
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            })
+          },
+          (error) => {
+            let errorMessage = 'Unknown geolocation error'
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                errorMessage = 'User denied the request for geolocation'
+                break
+              case error.POSITION_UNAVAILABLE:
+                errorMessage = 'Location information is unavailable'
+                break
+              case error.TIMEOUT:
+                errorMessage = 'The request to get user location timed out'
+                break
+            }
+            reject(new Error(errorMessage))
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000 // 5 minutes
+          }
+        )
+      })
+    }
+
     const initializeMap = async () => {
       try {
         loading.value = true
@@ -139,32 +179,31 @@ export default {
           throw new Error('Map container not found')
         }
 
-        // Initialize map using mapsService with minimal configuration for testing
+        // Try to get user's current location
+        let mapCenter = props.center
+        let mapZoom = props.zoom
+
+        try {
+          console.log('Attempting to get user location...')
+          const userLocation = await getCurrentPosition()
+          mapCenter = userLocation
+          mapZoom = 12 // Zoom in more when we have user location
+          userLocationCentered.value = true
+          console.log('Got user location:', userLocation)
+        } catch (locationError) {
+          console.log('Could not get user location, using default:', locationError.message)
+          userLocationCentered.value = false
+          // Use default center if geolocation fails
+        }
+
+        // Initialize map using mapsService
         map.value = await mapsService.initializeMap(mapContainer.value, {
-          center: props.center,
-          zoom: props.zoom
-          // Remove conflicting configurations temporarily
+          center: mapCenter,
+          zoom: mapZoom
         })
 
         console.log('Map initialized successfully:', !!map.value)
-        console.log('Map bounds:', map.value.getBounds())
         console.log('Map center:', map.value.getCenter())
-
-        // Add a test marker to verify basic functionality
-        const testMarker = new google.maps.Marker({
-          map: map.value,
-          position: { lat: 44.9778, lng: -93.2650 }, // Minneapolis
-          title: 'Test Marker',
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: '#FF0000',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 2
-          }
-        })
-        console.log('Test marker created at Minneapolis:', testMarker.getPosition().toString())
 
         // Add click listener for marking new catches
         if (props.clickable) {
@@ -223,14 +262,16 @@ export default {
       // Initialize filters with all species
       activeFilters.value = [...fishSpecies]
 
-      // If we have markers, fit the map bounds to include all markers
-      if (markers.value.length > 0) {
+      // Only fit bounds to markers if user location wasn't successfully centered
+      if (markers.value.length > 0 && !userLocationCentered.value) {
         const bounds = new google.maps.LatLngBounds()
         markers.value.forEach(marker => {
           bounds.extend(marker.position)
         })
         map.value.fitBounds(bounds)
         console.log('Map bounds fitted to markers:', bounds.toJSON())
+      } else if (userLocationCentered.value) {
+        console.log('Skipping bounds fitting - user location is centered')
       }
     }
 
@@ -338,26 +379,40 @@ export default {
       })
     }
 
-    const getCurrentLocation = () => {
-      if (navigator.geolocation) {
+    const getCurrentLocation = async () => {
+      try {
         loading.value = true
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const pos = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
-            }
-            map.value.setCenter(pos)
-            map.value.setZoom(12)
-            loading.value = false
+        const userLocation = await getCurrentPosition()
+        
+        // Center map on user location
+        map.value.setCenter(userLocation)
+        map.value.setZoom(14)
+        
+        // Add a marker for user's current location
+        const userMarker = new google.maps.Marker({
+          map: map.value,
+          position: userLocation,
+          title: 'Your Current Location',
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#4285F4',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2
           },
-          () => {
-            error.value = 'Error: The Geolocation service failed.'
-            loading.value = false
-          }
-        )
-      } else {
-        error.value = 'Error: Your browser doesn\'t support geolocation.'
+          animation: google.maps.Animation.DROP
+        })
+
+        // Optional: Remove the marker after a few seconds
+        setTimeout(() => {
+          userMarker.setMap(null)
+        }, 5000)
+
+        loading.value = false
+      } catch (err) {
+        error.value = err.message
+        loading.value = false
       }
     }
 
