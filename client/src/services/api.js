@@ -85,7 +85,15 @@ export const catchesApi = {
     }
     return api.post('/catches', catchData)
   },
-  update: (id, catchData) => api.put(`/catches/${id}`, catchData),
+  update: (id, catchData) => {
+    // If catchData is FormData, set proper headers for multipart upload
+    if (catchData instanceof FormData) {
+      return api.put(`/catches/${id}`, catchData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+    }
+    return api.put(`/catches/${id}`, catchData)
+  },
   delete: (id) => api.delete(`/catches/${id}`),
   getStats: () => api.get('/catches/stats/summary')
 }

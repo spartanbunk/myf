@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Modal Edit Functionality</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        .info { color: blue; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Modal Edit Functionality Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Instructions</h2>
+        <ol>
+            <li><strong>Open this page alongside the fishing app</strong></li>
+            <li><strong>Follow each test step below</strong></li>
+            <li><strong>Check console messages and report results</strong></li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Dashboard Modal Test</h2>
+        <div id="dashboard-results">
+            <h3>Steps:</h3>
+            <ol>
+                <li>Go to <a href="http://localhost:3000/dashboard" target="_blank">Dashboard</a></li>
+                <li>Open Developer Tools (F12) → Console tab</li>
+                <li>Click on any catch card</li>
+                <li>Verify modal opens in VIEW mode</li>
+                <li>Click "Edit" button</li>
+                <li>Change species name (e.g., add "TEST" to the end)</li>
+                <li>Click "Save Changes"</li>
+                <li>Check console for errors</li>
+            </ol>
+            <button onclick="testDashboardConnectivity()">Test Dashboard API</button>
+            <div id="dashboard-test-output"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📋 Catches Page Modal Test</h2>
+        <div id="catches-results">
+            <h3>Steps:</h3>
+            <ol>
+                <li>Go to <a href="http://localhost:3000/catches" target="_blank">Catches Page</a></li>
+                <li>Keep Developer Tools open</li>
+                <li>Click on any catch card (grid or list view)</li>
+                <li>Verify modal opens in VIEW mode</li>
+                <li>Click "Edit" button</li>
+                <li>Change weight (e.g., add 0.5 lbs)</li>
+                <li>Click "Save Changes"</li>
+                <li>Check console for errors</li>
+            </ol>
+            <button onclick="testCatchesConnectivity()">Test Catches API</button>
+            <div id="catches-test-output"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 API Endpoint Tests</h2>
+        <button onclick="testAllEndpoints()">Test All Endpoints</button>
+        <div id="api-test-output"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Console Error Checker</h2>
+        <p>Copy and paste any console errors here for analysis:</p>
+        <textarea id="console-errors" rows="10" cols="80" placeholder="Paste console errors here..."></textarea>
+        <br>
+        <button onclick="analyzeErrors()">Analyze Errors</button>
+        <div id="error-analysis"></div>
+    </div>
+
+    <script>
+        async function testDashboardConnectivity() {
+            const output = document.getElementById('dashboard-test-output');
+            output.innerHTML = '<p class="info">Testing dashboard connectivity...</p>';
+            
+            try {
+                // Test if we can reach the dashboard page
+                const response = await fetch('http://localhost:3000/dashboard');
+                if (response.ok) {
+                    output.innerHTML += '<p class="success">✅ Dashboard page accessible</p>';
+                } else {
+                    output.innerHTML += '<p class="error">❌ Dashboard page error: ' + response.status + '</p>';
+                }
+                
+                // Test stats API
+                const statsResponse = await fetch('http://localhost:3001/api/catches/stats/summary');
+                if (statsResponse.status === 401) {
+                    output.innerHTML += '<p class="warning">⚠️ Stats API requires auth (expected)</p>';
+                } else if (statsResponse.ok) {
+                    output.innerHTML += '<p class="success">✅ Stats API accessible</p>';
+                } else {
+                    output.innerHTML += '<p class="error">❌ Stats API error: ' + statsResponse.status + '</p>';
+                }
+                
+            } catch (error) {
+                output.innerHTML += '<p class="error">❌ Connection error: ' + error.message + '</p>';
+            }
+        }
+
+        async function testCatchesConnectivity() {
+            const output = document.getElementById('catches-test-output');
+            output.innerHTML = '<p class="info">Testing catches page connectivity...</p>';
+            
+            try {
+                // Test if we can reach the catches page
+                const response = await fetch('http://localhost:3000/catches');
+                if (response.ok) {
+                    output.innerHTML += '<p class="success">✅ Catches page accessible</p>';
+                } else {
+                    output.innerHTML += '<p class="error">❌ Catches page error: ' + response.status + '</p>';
+                }
+                
+                // Test catches API
+                const catchesResponse = await fetch('http://localhost:3001/api/catches');
+                if (catchesResponse.status === 401) {
+                    output.innerHTML += '<p class="warning">⚠️ Catches API requires auth (expected)</p>';
+                } else if (catchesResponse.ok) {
+                    output.innerHTML += '<p class="success">✅ Catches API accessible</p>';
+                } else {
+                    output.innerHTML += '<p class="error">❌ Catches API error: ' + catchesResponse.status + '</p>';
+                }
+                
+            } catch (error) {
+                output.innerHTML += '<p class="error">❌ Connection error: ' + error.message + '</p>';
+            }
+        }
+
+        async function testAllEndpoints() {
+            const output = document.getElementById('api-test-output');
+            output.innerHTML = '<p class="info">Testing all API endpoints...</p>';
+            
+            const endpoints = [
+                { url: 'http://localhost:3001/health', name: 'Health Check' },
+                { url: 'http://localhost:3001/api/catches', name: 'GET Catches' },
+                { url: 'http://localhost:3001/api/catches/stats/summary', name: 'Stats Summary' },
+                { url: 'http://localhost:3000', name: 'Client App' }
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint.url);
+                    if (response.ok) {
+                        output.innerHTML += `<p class="success">✅ ${endpoint.name}: OK (${response.status})</p>`;
+                    } else if (response.status === 401) {
+                        output.innerHTML += `<p class="warning">⚠️ ${endpoint.name}: Auth required (${response.status})</p>`;
+                    } else {
+                        output.innerHTML += `<p class="error">❌ ${endpoint.name}: Error (${response.status})</p>`;
+                    }
+                } catch (error) {
+                    output.innerHTML += `<p class="error">❌ ${endpoint.name}: ${error.message}</p>`;
+                }
+            }
+        }
+
+        function analyzeErrors() {
+            const errors = document.getElementById('console-errors').value;
+            const analysis = document.getElementById('error-analysis');
+            
+            if (!errors.trim()) {
+                analysis.innerHTML = '<p class="warning">No errors provided for analysis</p>';
+                return;
+            }
+            
+            let analysisText = '<h3>Error Analysis:</h3>';
+            
+            // Common error patterns
+            if (errors.includes('500')) {
+                analysisText += '<p class="error">🔥 500 Server Error detected - Check server logs</p>';
+            }
+            if (errors.includes('AxiosError')) {
+                analysisText += '<p class="error">🌐 Network/API error - Check API endpoints</p>';
+            }
+            if (errors.includes('column') && errors.includes('does not exist')) {
+                analysisText += '<p class="error">🗃️ Database column error - Check database schema</p>';
+            }
+            if (errors.includes('undefined') || errors.includes('null')) {
+                analysisText += '<p class="warning">⚠️ Undefined/null value error - Check data validation</p>';
+            }
+            if (errors.includes('Cannot read property')) {
+                analysisText += '<p class="warning">⚠️ Property access error - Check object structure</p>';
+            }
+            if (errors.includes('401')) {
+                analysisText += '<p class="warning">🔐 Authentication error - Check login status</p>';
+            }
+            
+            analysisText += '<h4>Suggested Actions:</h4>';
+            analysisText += '<ul>';
+            analysisText += '<li>Check server logs: <code>docker-compose logs server</code></li>';
+            analysisText += '<li>Verify database schema matches API expectations</li>';
+            analysisText += '<li>Ensure user is properly authenticated</li>';
+            analysisText += '<li>Check network connectivity between client/server</li>';
+            analysisText += '</ul>';
+            
+            analysis.innerHTML = analysisText;
+        }
+
+        // Auto-run basic connectivity test on load
+        window.onload = function() {
+            testAllEndpoints();
+        };
+    </script>
+</body>
+</html>

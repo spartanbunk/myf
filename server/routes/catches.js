@@ -5,8 +5,18 @@ const multer = require('multer');
 const router = express.Router();
 
 // Configure multer for handling multipart form data (including file uploads)
+const path = require('path');
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, 'uploads/catches/');
+    },
+    filename: (req, file, cb) => {
+      // Create unique filename with timestamp and original extension
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
@@ -268,9 +278,8 @@ router.post('/', authenticateToken, upload.single('photo'), async (req, res) => 
     // Handle uploaded photo
     let photoUrls = [];
     if (req.file) {
-      // TODO: Upload to S3 or save to disk and get URL
-      // For now, create a mock URL
-      photoUrls = [`/uploads/catches/${Date.now()}-${req.file.originalname}`];
+      // File is now saved to disk, create the URL using the actual filename
+      photoUrls = [`/uploads/catches/${req.file.filename}`];
     }
 
     // Insert catch into database
@@ -304,7 +313,7 @@ router.post('/', authenticateToken, upload.single('photo'), async (req, res) => 
 });
 
 // PUT /api/catches/:id - Update a catch
-router.put('/:id', authenticateToken, validateCatchUpdate, async (req, res) => {
+router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -312,23 +321,60 @@ router.put('/:id', authenticateToken, validateCatchUpdate, async (req, res) => {
       return res.status(400).json({ error: 'Invalid catch ID' });
     }
 
-    // Check validation results
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
+    // Manual validation for multipart form data (similar to POST endpoint)
+    const errors = [];
+    
+    if (req.body.species && req.body.species.trim().length === 0) {
+      errors.push({ field: 'species', message: 'Species cannot be empty' });
+    }
+    
+    if (req.body.location && req.body.location.trim().length === 0) {
+      errors.push({ field: 'location', message: 'Location cannot be empty' });
+    }
+    
+    if (req.body.date) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+      if (!dateRegex.test(req.body.date)) {
+        errors.push({ field: 'date', message: 'Invalid date format. Expected ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)' });
+      }
+    }
+    
+    if (req.body.weight && (isNaN(parseFloat(req.body.weight)) || parseFloat(req.body.weight) < 0)) {
+      errors.push({ field: 'weight', message: 'Weight must be a positive number' });
+    }
+    
+    if (req.body.length && (isNaN(parseFloat(req.body.length)) || parseFloat(req.body.length) < 0)) {
+      errors.push({ field: 'length', message: 'Length must be a positive number' });
+    }
+    
+    if (req.body.latitude && (isNaN(parseFloat(req.body.latitude)) || parseFloat(req.body.latitude) < -90 || parseFloat(req.body.latitude) > 90)) {
+      errors.push({ field: 'latitude', message: 'Invalid latitude. Must be between -90 and 90' });
+    }
+    
+    if (req.body.longitude && (isNaN(parseFloat(req.body.longitude)) || parseFloat(req.body.longitude) < -180 || parseFloat(req.body.longitude) > 180)) {
+      errors.push({ field: 'longitude', message: 'Invalid longitude. Must be between -180 and 180' });
+    }
+    
+    if (req.body.notes && req.body.notes.length > 1000) {
+      errors.push({ field: 'notes', message: 'Notes must be less than 1000 characters' });
+    }
+    
+    if (errors.length > 0) {
       return res.status(400).json({
         error: 'Validation failed',
-        details: errors.array()
+        details: errors
       });
     }
 
-    // TODO: Check if catch exists and belongs to user
-    // const existingResult = await db.query('SELECT id FROM catches WHERE id = $1 AND user_id = $2', [id, req.userId]);
-    // if (existingResult.rows.length === 0) {
-    //   return res.status(404).json({ error: 'Catch not found' });
-    // }
+    // Check if catch exists and belongs to user
+    const existingResult = await pool.query('SELECT id FROM catches WHERE id = $1 AND user_id = $2', [id, req.userId]);
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Catch not found' });
+    }
 
     const updateFields = {};
-    const allowedFields = ['species', 'weight', 'length', 'location', 'latitude', 'longitude', 'date', 'notes', 'photoUrls'];
+    // Only include fields that actually exist in the database table
+    const allowedFields = ['species', 'weight', 'length', 'location', 'latitude', 'longitude', 'date', 'notes', 'photo_urls'];
     
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
@@ -336,39 +382,41 @@ router.put('/:id', authenticateToken, validateCatchUpdate, async (req, res) => {
       }
     });
 
+    // Handle uploaded photo
+    if (req.file) {
+      // File is now saved to disk, create the URL using the actual filename
+      const photoUrls = [`/uploads/catches/${req.file.filename}`];
+      updateFields.photo_urls = JSON.stringify(photoUrls);
+    }
+
+    // Note: Additional fields like lure_type, depth, weather data etc. 
+    // would need database migration to add these columns first
+
     if (Object.keys(updateFields).length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
 
-    // TODO: Update catch in database
-    // const setClause = Object.keys(updateFields).map((field, index) => `${field} = $${index + 3}`).join(', ');
-    // const values = Object.values(updateFields);
-    // const result = await db.query(
-    //   `UPDATE catches SET ${setClause}, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING *`,
-    //   [id, req.userId, ...values]
-    // );
-    // const updatedCatch = result.rows[0];
+    // Update catch in database
+    const setClause = Object.keys(updateFields).map((field, index) => `${field} = $${index + 3}`).join(', ');
+    const values = Object.values(updateFields);
+    const result = await pool.query(
+      `UPDATE catches SET ${setClause}, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING *`,
+      [id, req.userId, ...values]
+    );
+    const updatedCatch = result.rows[0];
 
-    // Mock response for now
-    const updatedCatch = {
-      id: parseInt(id),
-      user_id: req.userId,
-      species: updateFields.species || 'Bass',
-      weight: updateFields.weight || 2.5,
-      length: updateFields.length || 15.5,
-      location: updateFields.location || 'Lake Michigan',
-      latitude: updateFields.latitude || 42.3314,
-      longitude: updateFields.longitude || -87.9073,
-      date: updateFields.date || '2024-01-15T10:30:00Z',
-      notes: updateFields.notes || 'Great fight!',
-      photo_urls: updateFields.photoUrls || ['https://example.com/photo1.jpg'],
-      created_at: '2024-01-15T10:30:00Z',
-      updated_at: new Date().toISOString()
+    // Format the response to include coordinates object like in the GET endpoint
+    const formattedCatch = {
+      ...updatedCatch,
+      coordinates: {
+        lat: parseFloat(updatedCatch.latitude),
+        lng: parseFloat(updatedCatch.longitude)
+      }
     };
 
     res.json({
       message: 'Catch updated successfully',
-      catch: updatedCatch
+      catch: formattedCatch
     });
 
   } catch (error) {
@@ -386,18 +434,13 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Invalid catch ID' });
     }
 
-    // TODO: Delete catch from database
-    // const result = await db.query('DELETE FROM catches WHERE id = $1 AND user_id = $2 RETURNING id', [id, req.userId]);
-    // if (result.rows.length === 0) {
-    //   return res.status(404).json({ error: 'Catch not found' });
-    // }
-
-    // Mock response for now
-    if (id === '1' || id === '2') {
-      res.json({ message: 'Catch deleted successfully' });
-    } else {
-      res.status(404).json({ error: 'Catch not found' });
+    // Delete catch from database
+    const result = await pool.query('DELETE FROM catches WHERE id = $1 AND user_id = $2 RETURNING id', [id, req.userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Catch not found' });
     }
+
+    res.json({ message: 'Catch deleted successfully' });
 
   } catch (error) {
     console.error('Delete catch error:', error);

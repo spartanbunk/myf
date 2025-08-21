@@ -121,22 +121,37 @@
                 <div 
                   v-for="catch_ in recentCatches" 
                   :key="catch_.id"
-                  class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-300"
+                  class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-300 cursor-pointer"
+                  @click="openCatchDetails(catch_)"
                 >
                   <div class="flex items-center">
-                    <div 
-                      class="w-4 h-4 rounded-full mr-3"
-                      :style="{ backgroundColor: getSpeciesColor(catch_.species) }"
-                    ></div>
+                    <!-- Photo thumbnail or species color indicator -->
+                    <div class="mr-3 flex-shrink-0">
+                      <img 
+                        v-if="getPhotoUrl(catch_)"
+                        :src="getPhotoUrl(catch_)"
+                        :alt="catch_.species"
+                        class="w-12 h-12 rounded-lg object-cover"
+                      >
+                      <div 
+                        v-else
+                        class="w-12 h-12 rounded-lg flex items-center justify-center"
+                        :style="{ backgroundColor: getSpeciesColor(catch_.species) }"
+                      >
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                      </div>
+                    </div>
                     <div>
                       <h3 class="font-medium text-gray-800">{{ catch_.species }}</h3>
                       <p class="text-sm text-gray-600">
-                        {{ catch_.weight }}lb - {{ formatDate(catch_.dateOfCatch) }}
+                        {{ catch_.weight }}lb - {{ formatDate(catch_.date) }}
                       </p>
                     </div>
                   </div>
                   <div class="text-right">
-                    <p class="text-sm text-gray-600">{{ catch_.lureType }}</p>
+                    <p class="text-sm text-gray-600">{{ catch_.lure_type }}</p>
                     <p class="text-xs text-gray-500">{{ catch_.depth }}ft deep</p>
                   </div>
                 </div>
@@ -209,15 +224,33 @@
         </div>
       </div>
     </div>
+
+    <!-- Catch Details Modal -->
+    <LogCatchModal
+      :isOpen="showCatchModal"
+      :mode="modalMode"
+      :catchData="selectedCatchData"
+      :coordinates="selectedCatchData?.coordinates"
+      @close="closeCatchModal"
+      @save="handleCatchUpdate"
+      @delete="handleCatchDelete"
+      @mode-changed="handleModeChanged"
+    />
+    
   </div>
 </template>
 
 <script>
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/store/auth'
+import { formatDate, getSpeciesColor } from '@/utils/helpers'
+import LogCatchModal from '@/components/maps/LogCatchModal.vue'
 
 export default {
   name: 'Dashboard',
+  components: {
+    LogCatchModal
+  },
   setup() {
     const authStore = useAuthStore()
     const stats = ref({
@@ -229,39 +262,19 @@ export default {
     const recentCatches = ref([])
     const weather = ref(null)
 
+    // Modal state management
+    const showCatchModal = ref(false)
+    const modalMode = ref('view')
+    const selectedCatchData = ref(null)
+
     const user = computed(() => authStore.user)
 
-    const speciesColors = {
-      'Musky': '#FF6B6B',
-      'Pike': '#4ECDC4', 
-      'Bass(Smallmouth)': '#45B7D1',
-      'Bass(Largemouth)': '#96CEB4',
-      'Walleye': '#FFEAA7',
-      'Perch': '#DDA0DD',
-      'Bluegill': '#87CEEB',
-      'Catfish': '#F4A261',
-      'Trout': '#E9C46A',
-      'Salmon': '#F76C6C',
-      'Other': '#95A5A6'
-    }
-
-    const getSpeciesColor = (species) => {
-      return speciesColors[species] || speciesColors['Other']
-    }
-
-    const formatDate = (dateString) => {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      })
-    }
+    // Using imported utilities from helpers.js for consistent date formatting and species colors
 
     const loadDashboardData = async () => {
       try {
         // Load user statistics
-        const statsResponse = await fetch('/api/catches/stats', {
+        const statsResponse = await fetch('/api/catches/stats/summary', {
           headers: {
             'Authorization': `Bearer ${authStore.token}`
           }
@@ -302,6 +315,74 @@ export default {
       }
     }
 
+    // Modal handler functions
+    const openCatchDetails = (catch_) => {
+      selectedCatchData.value = {
+        ...catch_,
+        coordinates: {
+          lat: parseFloat(catch_.latitude),
+          lng: parseFloat(catch_.longitude)
+        }
+      }
+      modalMode.value = 'view'
+      showCatchModal.value = true
+    }
+
+    const closeCatchModal = () => {
+      showCatchModal.value = false
+      selectedCatchData.value = null
+      modalMode.value = 'view'
+    }
+
+    const handleCatchUpdate = async (updatedCatchData) => {
+      try {
+        // Update the catch data locally
+        const index = recentCatches.value.findIndex(c => c.id === updatedCatchData.id)
+        if (index !== -1) {
+          recentCatches.value[index] = { ...recentCatches.value[index], ...updatedCatchData }
+        }
+        
+        // Reload dashboard data to refresh statistics
+        await loadDashboardData()
+        
+        closeCatchModal()
+      } catch (error) {
+        console.error('Error updating catch:', error)
+      }
+    }
+
+    const handleCatchDelete = async (catchId) => {
+      try {
+        // Remove from local data
+        recentCatches.value = recentCatches.value.filter(c => c.id !== catchId)
+        
+        // Reload dashboard data to refresh statistics
+        await loadDashboardData()
+        
+        closeCatchModal()
+      } catch (error) {
+        console.error('Error deleting catch:', error)
+      }
+    }
+
+    const handleModeChanged = (newMode) => {
+      modalMode.value = newMode
+    }
+
+    // Get photo URL from photo_urls array
+    const getPhotoUrl = (catch_) => {
+      if (!catch_ || !catch_.photo_urls) return null
+      try {
+        const photoUrls = typeof catch_.photo_urls === 'string' 
+          ? JSON.parse(catch_.photo_urls) 
+          : catch_.photo_urls
+        return photoUrls && photoUrls.length > 0 ? photoUrls[0] : null
+      } catch (error) {
+        console.error('Error parsing photo URLs:', error)
+        return null
+      }
+    }
+
     onMounted(() => {
       loadDashboardData()
     })
@@ -311,8 +392,17 @@ export default {
       stats,
       recentCatches,
       weather,
+      showCatchModal,
+      modalMode,
+      selectedCatchData,
       getSpeciesColor,
-      formatDate
+      formatDate,
+      getPhotoUrl,
+      openCatchDetails,
+      closeCatchModal,
+      handleCatchUpdate,
+      handleCatchDelete,
+      handleModeChanged
     }
   }
 }

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Catch Click Functionality</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>Testing Catch Click Functionality</h1>
+    <div id="test-results"></div>
+    
+    <script>
+        async function testCatchClick() {
+            const resultsDiv = document.getElementById('test-results');
+            
+            try {
+                // Test 1: Check if server is running
+                console.log('🧪 Test 1: Checking server connectivity...');
+                const serverTest = await axios.get('http://localhost:3001/api/health');
+                console.log('✅ Server is running');
+                resultsDiv.innerHTML += '<p>✅ Server is running</p>';
+            } catch (error) {
+                console.log('❌ Server not accessible:', error.message);
+                resultsDiv.innerHTML += '<p>❌ Server not accessible: ' + error.message + '</p>';
+                return;
+            }
+            
+            try {
+                // Test 2: Check if we can fetch catches (this will likely fail due to auth)
+                console.log('🧪 Test 2: Checking catch API...');
+                const catchesResponse = await axios.get('http://localhost:3001/api/catches');
+                console.log('✅ Catches API accessible:', catchesResponse.data);
+                resultsDiv.innerHTML += '<p>✅ Catches API accessible</p>';
+            } catch (error) {
+                if (error.response && error.response.status === 401) {
+                    console.log('⚠️ Catches API requires authentication (expected)');
+                    resultsDiv.innerHTML += '<p>⚠️ Catches API requires authentication (expected)</p>';
+                } else {
+                    console.log('❌ Catches API error:', error.message);
+                    resultsDiv.innerHTML += '<p>❌ Catches API error: ' + error.message + '</p>';
+                }
+            }
+            
+            // Test 3: Check if client is running
+            try {
+                console.log('🧪 Test 3: Checking client connectivity...');
+                const clientTest = await axios.get('http://localhost:3000');
+                console.log('✅ Client is running');
+                resultsDiv.innerHTML += '<p>✅ Client is running</p>';
+            } catch (error) {
+                console.log('❌ Client not accessible:', error.message);
+                resultsDiv.innerHTML += '<p>❌ Client not accessible: ' + error.message + '</p>';
+            }
+            
+            // Instructions for manual testing
+            resultsDiv.innerHTML += `
+                <h2>Manual Testing Instructions:</h2>
+                <ol>
+                    <li>Go to <a href="http://localhost:3000" target="_blank">http://localhost:3000</a></li>
+                    <li>Log in with your credentials</li>
+                    <li>Navigate to the Dashboard</li>
+                    <li>Open Developer Tools (F12) and go to Console tab</li>
+                    <li>Click on any catch card</li>
+                    <li>Look for these console messages:
+                        <ul>
+                            <li>"Click handler called for catch:" - means click handler works</li>
+                            <li>"Modal should be open now, showCatchModal: true" - means modal state is set</li>
+                        </ul>
+                    </li>
+                </ol>
+            `;
+        }
+        
+        // Run test when page loads
+        window.onload = testCatchClick;
+    </script>
+</body>
+</html>

@@ -17,6 +17,10 @@ export default defineConfig({
         target: 'http://myf-server:3001',
         changeOrigin: true,
       },
+      '/uploads': {
+        target: 'http://myf-server:3001',
+        changeOrigin: true,
+      },
     },
   },
   build: {

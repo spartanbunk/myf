@@ -181,8 +181,8 @@
           <!-- Photo -->
           <div class="aspect-w-16 aspect-h-12 bg-gray-200">
             <img 
-              v-if="catch_.photoUrl" 
-              :src="catch_.photoUrl" 
+              v-if="getPhotoUrl(catch_)" 
+              :src="getPhotoUrl(catch_)" 
               :alt="catch_.species"
               class="w-full h-48 object-cover"
             >
@@ -214,11 +214,11 @@
               </div>
               <div class="flex justify-between">
                 <span>Date:</span>
-                <span class="font-medium">{{ formatDate(catch_.dateOfCatch) }}</span>
+                <span class="font-medium">{{ formatDate(catch_.date) }}</span>
               </div>
-              <div v-if="catch_.lureType" class="flex justify-between">
+              <div v-if="catch_.lure_type" class="flex justify-between">
                 <span>Lure:</span>
-                <span class="font-medium">{{ catch_.lureType }}</span>
+                <span class="font-medium">{{ catch_.lure_type }}</span>
               </div>
             </div>
           </div>
@@ -263,10 +263,10 @@
                   {{ catch_.length ? `${catch_.length} in` : '-' }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ catch_.lureType || '-' }}
+                  {{ catch_.lure_type || '-' }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ formatDate(catch_.dateOfCatch) }}
+                  {{ formatDate(catch_.date) }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {{ formatCoordinates(catch_.coordinates) }}
@@ -329,65 +329,40 @@
     </div>
 
     <!-- Catch Details Modal -->
-    <div 
-      v-if="selectedCatch" 
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      @click.self="closeDetailsModal"
-    >
-      <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <!-- Modal content similar to Map.vue -->
-        <div class="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 class="text-xl font-bold text-gray-800">{{ selectedCatch.species }} Details</h2>
-          <button 
-            @click="closeDetailsModal"
-            class="text-gray-400 hover:text-gray-600 transition duration-300"
-          >
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-
-        <div class="p-6">
-          <!-- Photo -->
-          <div v-if="selectedCatch.photoUrl" class="mb-6">
-            <img 
-              :src="selectedCatch.photoUrl" 
-              :alt="selectedCatch.species"
-              class="w-full h-64 object-cover rounded-lg"
-            >
-          </div>
-
-          <!-- Detailed catch information -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="space-y-3">
-              <h3 class="text-lg font-semibold text-gray-800 border-b pb-2">Catch Details</h3>
-              <!-- All catch details here -->
-            </div>
-            <div class="space-y-3">
-              <h3 class="text-lg font-semibold text-gray-800 border-b pb-2">Environmental</h3>
-              <!-- Environmental details here -->
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <LogCatchModal
+      :isOpen="showCatchModal"
+      :mode="modalMode"
+      :catchData="selectedCatchData"
+      :coordinates="selectedCatchData?.coordinates"
+      @close="closeCatchModal"
+      @save="handleCatchUpdate"
+      @delete="handleCatchDelete"
+      @mode-changed="handleModeChanged"
+    />
   </div>
 </template>
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/store/auth'
+import { formatDate, getSpeciesColor } from '@/utils/helpers'
+import LogCatchModal from '@/components/maps/LogCatchModal.vue'
 
 export default {
   name: 'Catches',
+  components: {
+    LogCatchModal
+  },
   setup() {
     const authStore = useAuthStore()
     const catches = ref([])
     const loading = ref(true)
     const searchTerm = ref('')
     const viewMode = ref('grid')
-    const selectedCatch = ref(null)
+    // Modal state management
+    const showCatchModal = ref(false)
+    const modalMode = ref('view')
+    const selectedCatchData = ref(null)
     const currentPage = ref(1)
     const pageSize = ref(12)
 
@@ -398,19 +373,7 @@ export default {
 
     const sortBy = ref('dateDesc')
 
-    const speciesColors = {
-      'Musky': '#FF6B6B',
-      'Pike': '#4ECDC4', 
-      'Bass(Smallmouth)': '#45B7D1',
-      'Bass(Largemouth)': '#96CEB4',
-      'Walleye': '#FFEAA7',
-      'Perch': '#DDA0DD',
-      'Bluegill': '#87CEEB',
-      'Catfish': '#F4A261',
-      'Trout': '#E9C46A',
-      'Salmon': '#F76C6C',
-      'Other': '#95A5A6'
-    }
+    // Using imported utilities from helpers.js
 
     const totalCatches = computed(() => catches.value.length)
 
@@ -427,7 +390,7 @@ export default {
         const term = searchTerm.value.toLowerCase()
         filtered = filtered.filter(c => 
           c.species.toLowerCase().includes(term) ||
-          c.lureType?.toLowerCase().includes(term) ||
+          c.lure_type?.toLowerCase().includes(term) ||
           c.notes?.toLowerCase().includes(term)
         )
       }
@@ -445,19 +408,19 @@ export default {
         switch (filters.value.dateRange) {
           case 'today':
             filterDate.setHours(0, 0, 0, 0)
-            filtered = filtered.filter(c => new Date(c.dateOfCatch) >= filterDate)
+            filtered = filtered.filter(c => new Date(c.date) >= filterDate)
             break
           case 'week':
             filterDate.setDate(now.getDate() - 7)
-            filtered = filtered.filter(c => new Date(c.dateOfCatch) >= filterDate)
+            filtered = filtered.filter(c => new Date(c.date) >= filterDate)
             break
           case 'month':
             filterDate.setMonth(now.getMonth() - 1)
-            filtered = filtered.filter(c => new Date(c.dateOfCatch) >= filterDate)
+            filtered = filtered.filter(c => new Date(c.date) >= filterDate)
             break
           case 'year':
             filterDate.setFullYear(now.getFullYear() - 1)
-            filtered = filtered.filter(c => new Date(c.dateOfCatch) >= filterDate)
+            filtered = filtered.filter(c => new Date(c.date) >= filterDate)
             break
         }
       }
@@ -466,9 +429,9 @@ export default {
       filtered.sort((a, b) => {
         switch (sortBy.value) {
           case 'dateDesc':
-            return new Date(b.dateOfCatch) - new Date(a.dateOfCatch)
+            return new Date(b.date) - new Date(a.date)
           case 'dateAsc':
-            return new Date(a.dateOfCatch) - new Date(b.dateOfCatch)
+            return new Date(a.date) - new Date(b.date)
           case 'weightDesc':
             return (b.weight || 0) - (a.weight || 0)
           case 'weightAsc':
@@ -514,18 +477,7 @@ export default {
       return pages
     })
 
-    const getSpeciesColor = (species) => {
-      return speciesColors[species] || speciesColors['Other']
-    }
-
-    const formatDate = (dateString) => {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-      })
-    }
+    // Using imported formatDate and getSpeciesColor from helpers.js
 
     const formatCoordinates = (coordinates) => {
       if (!coordinates) return '-'
@@ -561,16 +513,62 @@ export default {
     }
 
     const openCatchDetails = (catch_) => {
-      selectedCatch.value = catch_
+      selectedCatchData.value = {
+        ...catch_,
+        coordinates: {
+          lat: parseFloat(catch_.latitude),
+          lng: parseFloat(catch_.longitude)
+        }
+      }
+      modalMode.value = 'view'
+      showCatchModal.value = true
     }
 
-    const closeDetailsModal = () => {
-      selectedCatch.value = null
+    const closeCatchModal = () => {
+      showCatchModal.value = false
+      selectedCatchData.value = null
+      modalMode.value = 'view'
+    }
+
+    const handleCatchUpdate = async (updatedCatchData) => {
+      try {
+        // Update the catch data locally
+        const index = catches.value.findIndex(c => c.id === updatedCatchData.id)
+        if (index !== -1) {
+          catches.value[index] = { ...catches.value[index], ...updatedCatchData }
+        }
+        
+        closeCatchModal()
+      } catch (error) {
+        console.error('Error updating catch:', error)
+      }
+    }
+
+    const handleCatchDelete = async (catchId) => {
+      try {
+        // Remove from local data
+        catches.value = catches.value.filter(c => c.id !== catchId)
+        
+        closeCatchModal()
+      } catch (error) {
+        console.error('Error deleting catch:', error)
+      }
+    }
+
+    const handleModeChanged = (newMode) => {
+      modalMode.value = newMode
     }
 
     const editCatch = (catch_) => {
-      console.log('Edit catch:', catch_)
-      // TODO: Implement edit functionality
+      selectedCatchData.value = {
+        ...catch_,
+        coordinates: {
+          lat: parseFloat(catch_.latitude),
+          lng: parseFloat(catch_.longitude)
+        }
+      }
+      modalMode.value = 'edit'
+      showCatchModal.value = true
     }
 
     const deleteCatch = async (catch_) => {
@@ -599,6 +597,20 @@ export default {
       console.log('Export catches to CSV')
     }
 
+    // Get photo URL from photo_urls array
+    const getPhotoUrl = (catch_) => {
+      if (!catch_.photo_urls) return null
+      try {
+        const photoUrls = typeof catch_.photo_urls === 'string' 
+          ? JSON.parse(catch_.photo_urls) 
+          : catch_.photo_urls
+        return photoUrls && photoUrls.length > 0 ? photoUrls[0] : null
+      } catch (error) {
+        console.error('Error parsing photo URLs:', error)
+        return null
+      }
+    }
+
     // Reset pagination when filters change
     watch([searchTerm, filters, sortBy], () => {
       currentPage.value = 1
@@ -613,7 +625,9 @@ export default {
       loading,
       searchTerm,
       viewMode,
-      selectedCatch,
+      showCatchModal,
+      modalMode,
+      selectedCatchData,
       currentPage,
       pageSize,
       filters,
@@ -627,9 +641,13 @@ export default {
       getSpeciesColor,
       formatDate,
       formatCoordinates,
+      getPhotoUrl,
       clearFilters,
       openCatchDetails,
-      closeDetailsModal,
+      closeCatchModal,
+      handleCatchUpdate,
+      handleCatchDelete,
+      handleModeChanged,
       editCatch,
       deleteCatch,
       exportCatches

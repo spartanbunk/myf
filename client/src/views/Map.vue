@@ -100,9 +100,9 @@
         <!-- Modal Body -->
         <div class="p-6">
           <!-- Photo -->
-          <div v-if="selectedCatch.photoUrl" class="mb-4">
+          <div v-if="getPhotoUrl(selectedCatch)" class="mb-4">
             <img 
-              :src="selectedCatch.photoUrl" 
+              :src="getPhotoUrl(selectedCatch)" 
               :alt="selectedCatch.species"
               class="w-full h-48 object-cover rounded-lg"
             >
@@ -386,6 +386,20 @@ export default {
       }
     }
 
+    // Get photo URL from photo_urls array
+    const getPhotoUrl = (catch_) => {
+      if (!catch_ || !catch_.photo_urls) return null
+      try {
+        const photoUrls = typeof catch_.photo_urls === 'string' 
+          ? JSON.parse(catch_.photo_urls) 
+          : catch_.photo_urls
+        return photoUrls && photoUrls.length > 0 ? photoUrls[0] : null
+      } catch (error) {
+        console.error('Error parsing photo URLs:', error)
+        return null
+      }
+    }
+
     onMounted(() => {
       initializeUserLocation()
       loadCatches()
@@ -408,7 +422,8 @@ export default {
       saveCatch,
       editCatch,
       deleteCatch,
-      formatDate
+      formatDate,
+      getPhotoUrl
     }
   }
 }

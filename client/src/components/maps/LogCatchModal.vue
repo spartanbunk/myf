@@ -7,7 +7,11 @@
     <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
       <!-- Modal Header -->
       <div class="flex items-center justify-between p-6 border-b border-gray-200">
-        <h2 class="text-2xl font-bold text-gray-800">Log Your Catch</h2>
+        <h2 class="text-2xl font-bold text-gray-800">
+          <span v-if="isCreateMode">Log Your Catch</span>
+          <span v-else-if="isViewMode">{{ catchData?.species || 'Catch' }} Details</span>
+          <span v-else-if="isEditMode">Edit {{ catchData?.species || 'Catch' }}</span>
+        </h2>
         <button 
           @click="closeModal"
           class="text-gray-400 hover:text-gray-600 transition duration-300"
@@ -32,7 +36,8 @@
                 v-model="formData.species" 
                 @change="handleSpeciesChange"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
+                :disabled="isReadOnly"
+                :required="!isReadOnly"
               >
                 <option value="">Select Species</option>
                 <option v-for="species in fishSpecies" :key="species" :value="species">
@@ -49,7 +54,8 @@
                 type="text"
                 placeholder="Enter species name"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
+                :disabled="isReadOnly"
+                :required="!isReadOnly"
               >
             </div>
 
@@ -63,6 +69,7 @@
                 min="0"
                 placeholder="e.g., 18.5"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                :disabled="isReadOnly"
               >
             </div>
 
@@ -76,6 +83,7 @@
                 min="0"
                 placeholder="e.g., 3.2"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                :disabled="isReadOnly"
               >
             </div>
 
@@ -133,7 +141,8 @@
                   v-model="formData.dateOfCatch"
                   type="date"
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
+                  :disabled="isReadOnly"
+                  :required="!isReadOnly"
                 >
               </div>
               <div>
@@ -142,7 +151,8 @@
                   v-model="formData.timeOfCatch"
                   type="time"
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
+                  :disabled="isReadOnly"
+                  :required="!isReadOnly"
                 >
               </div>
             </div>
@@ -297,6 +307,7 @@
             rows="3"
             placeholder="Any additional notes about this catch..."
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            :disabled="isReadOnly"
           ></textarea>
         </div>
 
@@ -309,22 +320,51 @@
         </div>
 
         <!-- Form Actions -->
-        <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200">
-          <button 
-            type="button" 
-            @click="closeModal"
-            class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-300"
-          >
-            Cancel
-          </button>
-          <button 
-            type="submit"
-            :disabled="isSubmitting"
-            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span v-if="isSubmitting">Saving...</span>
-            <span v-else>Save Catch</span>
-          </button>
+        <div class="flex justify-between mt-8 pt-6 border-t border-gray-200">
+          <!-- Left side - Delete button (only in view/edit mode) -->
+          <div>
+            <button 
+              v-if="!isCreateMode && catchData?.id"
+              type="button" 
+              @click="handleDelete"
+              class="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition duration-300"
+            >
+              🗑️ Delete
+            </button>
+          </div>
+          
+          <!-- Right side - Main actions -->
+          <div class="flex space-x-3">
+            <button 
+              type="button" 
+              @click="closeModal"
+              class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-300"
+            >
+              {{ isViewMode ? 'Close' : 'Cancel' }}
+            </button>
+            
+            <!-- View mode: Edit button -->
+            <button 
+              v-if="isViewMode"
+              type="button"
+              @click="switchToEditMode"
+              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300"
+            >
+              ✏️ Edit
+            </button>
+            
+            <!-- Edit/Create mode: Save button -->
+            <button 
+              v-if="!isViewMode"
+              type="submit"
+              :disabled="isSubmitting"
+              class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span v-if="isSubmitting">Saving...</span>
+              <span v-else-if="isEditMode">💾 Save Changes</span>
+              <span v-else>Save Catch</span>
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -333,7 +373,7 @@
 
 <script>
 import { ref, watch, computed } from 'vue'
-import { weatherApi } from '@/services/api'
+import { weatherApi, catchesApi } from '@/services/api'
 
 export default {
   name: 'LogCatchModal',
@@ -345,13 +385,29 @@ export default {
     coordinates: {
       type: Object,
       default: null
+    },
+    mode: {
+      type: String,
+      default: 'create',
+      validator: (value) => ['create', 'view', 'edit'].includes(value)
+    },
+    catchData: {
+      type: Object,
+      default: null
     }
   },
-  emits: ['close', 'save'],
+  emits: ['close', 'save', 'delete', 'mode-changed'],
   setup(props, { emit }) {
     const isSubmitting = ref(false)
     const photoInput = ref(null)
     const photoPreview = ref(null)
+    const currentMode = ref(props.mode)
+    
+    // Mode computed properties
+    const isViewMode = computed(() => currentMode.value === 'view')
+    const isEditMode = computed(() => currentMode.value === 'edit')
+    const isCreateMode = computed(() => currentMode.value === 'create')
+    const isReadOnly = computed(() => isViewMode.value)
 
     const fishSpecies = [
       'Musky', 'Pike', 'Bass(Smallmouth)', 'Bass(Largemouth)', 
@@ -417,6 +473,56 @@ export default {
       }
     }
 
+    const initializeFormData = () => {
+      if (props.catchData && (isViewMode.value || isEditMode.value)) {
+        // Parse the date from the catch data
+        const catchDate = new Date(props.catchData.date)
+        const dateString = catchDate.toISOString().split('T')[0]
+        const timeString = catchDate.toTimeString().split(' ')[0].slice(0, 5)
+        
+        // Populate formData with existing catch data
+        formData.value = {
+          species: props.catchData.species || '',
+          customSpecies: props.catchData.species === 'Other' ? props.catchData.customSpecies || '' : '',
+          length: props.catchData.length || '',
+          weight: props.catchData.weight || '',
+          lureType: props.catchData.lure_type || '',
+          customLureType: props.catchData.lure_type === 'Other' ? props.catchData.customLureType || '' : '',
+          photo: null,
+          dateOfCatch: dateString,
+          timeOfCatch: timeString,
+          depth: props.catchData.depth || '',
+          waterTemperature: props.catchData.water_temperature || '',
+          weatherConditions: props.catchData.weather_conditions || '',
+          airTemperature: props.catchData.air_temperature || '',
+          windSpeed: props.catchData.wind_speed || '',
+          windDirection: props.catchData.wind_direction || '',
+          barometricPressure: props.catchData.barometric_pressure || '',
+          pressureTrend: props.catchData.pressure_trend || '',
+          lunarPhase: props.catchData.lunar_phase || '',
+          notes: props.catchData.notes || ''
+        }
+        
+        // Handle existing photos
+        if (props.catchData.photo_urls) {
+          try {
+            // photo_urls comes from database as JSON string, parse it
+            const photoUrls = typeof props.catchData.photo_urls === 'string' 
+              ? JSON.parse(props.catchData.photo_urls) 
+              : props.catchData.photo_urls
+            
+            if (photoUrls && photoUrls.length > 0) {
+              photoPreview.value = photoUrls[0]
+            }
+          } catch (error) {
+            console.error('Error parsing photo URLs:', error)
+          }
+        }
+      } else {
+        resetForm()
+      }
+    }
+
     const handleSpeciesChange = () => {
       if (formData.value.species !== 'Other') {
         formData.value.customSpecies = ''
@@ -441,9 +547,32 @@ export default {
       }
     }
 
+    // Mode transition methods
+    const switchToEditMode = () => {
+      currentMode.value = 'edit'
+      emit('mode-changed', 'edit')
+    }
+
+    const switchToViewMode = () => {
+      currentMode.value = 'view'
+      emit('mode-changed', 'view')
+    }
+
     const closeModal = () => {
       resetForm()
+      currentMode.value = props.mode // Reset to original mode
       emit('close')
+    }
+
+    const handleDelete = async () => {
+      if (props.catchData && props.catchData.id) {
+        try {
+          await catchesApi.delete(props.catchData.id)
+          emit('delete', props.catchData.id)
+        } catch (error) {
+          console.error('Error deleting catch:', error)
+        }
+      }
     }
 
     const submitCatch = async () => {
@@ -483,8 +612,46 @@ export default {
           photo: formData.value.photo
         }
 
-        emit('save', catchData)
-        resetForm()
+        // Prepare data for API - use FormData if photo is present, otherwise use JSON
+        let apiData = catchData
+        if (formData.value.photo) {
+          // Create FormData for multipart upload
+          const formDataToSend = new FormData()
+          
+          // Add all non-file fields
+          Object.keys(catchData).forEach(key => {
+            if (key !== 'photo' && catchData[key] !== null && catchData[key] !== undefined) {
+              formDataToSend.append(key, catchData[key])
+            }
+          })
+          
+          // Add photo file
+          formDataToSend.append('photo', formData.value.photo)
+          apiData = formDataToSend
+        }
+
+        // Call appropriate API based on mode
+        if (isEditMode.value && props.catchData?.id) {
+          // Update existing catch
+          const response = await catchesApi.update(props.catchData.id, apiData)
+          emit('save', { 
+            ...response.data.catch, 
+            mode: currentMode.value 
+          })
+        } else {
+          // Create new catch - emit data for parent to handle
+          emit('save', { 
+            ...catchData, 
+            mode: currentMode.value 
+          })
+        }
+        
+        if (isCreateMode.value) {
+          resetForm()
+        } else {
+          // Switch back to view mode after successful edit
+          switchToViewMode()
+        }
       } catch (error) {
         console.error('Error submitting catch:', error)
       } finally {
@@ -492,28 +659,34 @@ export default {
       }
     }
 
-    // Auto-populate weather data when modal opens
-    watch(() => props.isOpen, async (isOpen) => {
-      if (isOpen && props.coordinates) {
-        try {
-          const response = await weatherApi.getCurrent(props.coordinates.lat, props.coordinates.lng)
-          const weather = response.data.weather?.current || response.data
-          
-          // Auto-populate weather fields from API response
-          if (weather.conditions) {
-            formData.value.weatherConditions = weather.conditions.main || weather.conditions.description || ''
+    // Initialize form data when modal opens or mode changes
+    watch([() => props.isOpen, () => props.mode, () => props.catchData], async ([isOpen, mode, catchData]) => {
+      if (isOpen) {
+        currentMode.value = mode
+        initializeFormData()
+        
+        // Auto-populate weather data only for create mode
+        if (isCreateMode.value && props.coordinates) {
+          try {
+            const response = await weatherApi.getCurrent(props.coordinates.lat, props.coordinates.lng)
+            const weather = response.data.weather?.current || response.data
+            
+            // Auto-populate weather fields from API response
+            if (weather.conditions) {
+              formData.value.weatherConditions = weather.conditions.main || weather.conditions.description || ''
+            }
+            formData.value.airTemperature = weather.temperature || ''
+            formData.value.windSpeed = weather.wind?.speed || weather.windSpeed || ''
+            formData.value.windDirection = weather.wind?.direction || weather.windDirection || ''
+            formData.value.barometricPressure = weather.pressure || ''
+            formData.value.pressureTrend = weather.pressureTrend || ''
+            formData.value.lunarPhase = weather.lunarPhase || ''
+          } catch (error) {
+            console.error('Error fetching weather data:', error)
           }
-          formData.value.airTemperature = weather.temperature || ''
-          formData.value.windSpeed = weather.wind?.speed || weather.windSpeed || ''
-          formData.value.windDirection = weather.wind?.direction || weather.windDirection || ''
-          formData.value.barometricPressure = weather.pressure || ''
-          formData.value.pressureTrend = weather.pressureTrend || ''
-          formData.value.lunarPhase = weather.lunarPhase || ''
-        } catch (error) {
-          console.error('Error fetching weather data:', error)
         }
       }
-    })
+    }, { immediate: true })
 
     return {
       formData,
@@ -522,10 +695,18 @@ export default {
       photoPreview,
       fishSpecies,
       lureTypes,
+      currentMode,
+      isViewMode,
+      isEditMode,
+      isCreateMode,
+      isReadOnly,
       handleSpeciesChange,
       handleLureChange,
       handlePhotoUpload,
+      switchToEditMode,
+      switchToViewMode,
       closeModal,
+      handleDelete,
       submitCatch
     }
   }
