@@ -125,14 +125,14 @@
               <span class="text-gray-900">{{ selectedCatch.length }} inches</span>
             </div>
             
-            <div v-if="selectedCatch.lureType" class="flex justify-between">
+            <div v-if="selectedCatch.lure_type" class="flex justify-between">
               <span class="font-medium text-gray-700">Lure:</span>
-              <span class="text-gray-900">{{ selectedCatch.lureType }}</span>
+              <span class="text-gray-900">{{ selectedCatch.lure_type }}</span>
             </div>
             
             <div class="flex justify-between">
               <span class="font-medium text-gray-700">Date:</span>
-              <span class="text-gray-900">{{ formatDate(selectedCatch.dateOfCatch) }}</span>
+              <span class="text-gray-900">{{ formatCatchDate(selectedCatch.date) }}</span>
             </div>
             
             <div v-if="selectedCatch.depth" class="flex justify-between">
@@ -140,14 +140,14 @@
               <span class="text-gray-900">{{ selectedCatch.depth }} feet</span>
             </div>
             
-            <div v-if="selectedCatch.waterTemperature" class="flex justify-between">
+            <div v-if="selectedCatch.water_temperature" class="flex justify-between">
               <span class="font-medium text-gray-700">Water Temp:</span>
-              <span class="text-gray-900">{{ selectedCatch.waterTemperature }}°F</span>
+              <span class="text-gray-900">{{ selectedCatch.water_temperature }}°F</span>
             </div>
 
-            <div v-if="selectedCatch.weatherConditions" class="flex justify-between">
+            <div v-if="selectedCatch.weather_conditions" class="flex justify-between">
               <span class="font-medium text-gray-700">Weather:</span>
-              <span class="text-gray-900">{{ selectedCatch.weatherConditions }}</span>
+              <span class="text-gray-900">{{ selectedCatch.weather_conditions }}</span>
             </div>
             
             <div v-if="selectedCatch.notes" class="border-t pt-3 mt-3">
@@ -195,6 +195,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/store/auth'
 import { catchesApi } from '@/services/api'
+import { formatDate, formatTime } from '@/utils/helpers'
 import GoogleMap from '@/components/maps/GoogleMap.vue'
 import LogCatchModal from '@/components/maps/LogCatchModal.vue'
 
@@ -217,16 +218,22 @@ export default {
     const mapCenter = ref({ lat: 44.9778, lng: -93.2650 }) // Minneapolis, MN default
     const mapZoom = ref(10)
 
-    const formatDate = (dateString) => {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+    const formatCatchDate = (dateString) => {
+      if (!dateString) return 'No date'
+      
+      try {
+        const dateTime = new Date(dateString)
+        if (isNaN(dateTime.getTime())) return 'Invalid date'
+        
+        const dateDisplay = formatDate(dateString, 'MMM dd, yyyy')
+        const timeString = dateTime.toTimeString().slice(0, 5)
+        const timeDisplay = formatTime(timeString, 'h:mm a')
+        
+        return `${dateDisplay} at ${timeDisplay}`
+      } catch (error) {
+        console.error('Error formatting catch date:', error)
+        return 'Invalid date'
+      }
     }
 
     const loadCatches = async () => {
@@ -422,7 +429,7 @@ export default {
       saveCatch,
       editCatch,
       deleteCatch,
-      formatDate,
+      formatCatchDate,
       getPhotoUrl
     }
   }

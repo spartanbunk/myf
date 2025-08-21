@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Date Formatting Test</title>
+    <script src="https://unpkg.com/date-fns@2.29.3/index.js"></script>
+</head>
+<body>
+    <h1>Date Formatting Test</h1>
+    
+    <div id="test-results"></div>
+    
+    <script>
+        // Test data similar to what comes from database
+        const testCatchData = {
+            id: 16,
+            species: "Musky",
+            date: "2025-08-21T22:20:00",
+            latitude: 42.421151,
+            longitude: -82.721033
+        };
+        
+        function formatDate(date, formatString = 'MMM dd, yyyy') {
+            if (!date) return '';
+            
+            try {
+                const dateObj = typeof date === 'string' ? new Date(date) : date;
+                if (isNaN(dateObj.getTime())) return '';
+                
+                // Simple formatting without date-fns for testing
+                const options = { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                };
+                return dateObj.toLocaleDateString('en-US', options);
+            } catch (error) {
+                console.error('Date formatting error:', error);
+                return '';
+            }
+        }
+        
+        function formatTime(time, formatString = 'h:mm a') {
+            if (!time) return '';
+            
+            try {
+                // Handle time string like "14:30"
+                const timeObj = new Date(`2000-01-01T${time}`);
+                if (isNaN(timeObj.getTime())) return '';
+                
+                const options = { 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true 
+                };
+                return timeObj.toLocaleTimeString('en-US', options);
+            } catch (error) {
+                console.error('Time formatting error:', error);
+                return '';
+            }
+        }
+        
+        function formatCatchDate(dateString) {
+            if (!dateString) return 'No date';
+            
+            try {
+                const dateTime = new Date(dateString);
+                if (isNaN(dateTime.getTime())) return 'Invalid date';
+                
+                const dateDisplay = formatDate(dateString, 'MMM dd, yyyy');
+                const timeString = dateTime.toTimeString().slice(0, 5);
+                const timeDisplay = formatTime(timeString, 'h:mm a');
+                
+                return `${dateDisplay} at ${timeDisplay}`;
+            } catch (error) {
+                console.error('Error formatting catch date:', error);
+                return 'Invalid date';
+            }
+        }
+        
+        // Test the formatting
+        const results = document.getElementById('test-results');
+        
+        results.innerHTML = `
+            <h2>Test Catch Data:</h2>
+            <pre>${JSON.stringify(testCatchData, null, 2)}</pre>
+            
+            <h2>Formatted Results:</h2>
+            <p><strong>Original Date:</strong> ${testCatchData.date}</p>
+            <p><strong>Formatted Date:</strong> ${formatDate(testCatchData.date)}</p>
+            <p><strong>Time String:</strong> ${new Date(testCatchData.date).toTimeString().slice(0, 5)}</p>
+            <p><strong>Formatted Time:</strong> ${formatTime(new Date(testCatchData.date).toTimeString().slice(0, 5))}</p>
+            <p><strong>Combined Format:</strong> ${formatCatchDate(testCatchData.date)}</p>
+            
+            <h2>Info Window Format Test:</h2>
+            <div style="border: 1px solid #ccc; padding: 10px; max-width: 300px; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <h3 style="font-weight: bold; font-size: 18px; margin-bottom: 8px;">${testCatchData.species || 'Unknown Species'}</h3>
+                <div style="font-size: 14px; line-height: 1.5;">
+                    <div><strong>Date:</strong> ${formatCatchDate(testCatchData.date)}</div>
+                </div>
+            </div>
+        `;
+    </script>
+</body>
+</html>

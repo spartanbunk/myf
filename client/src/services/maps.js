@@ -1,5 +1,5 @@
 import { Loader } from '@googlemaps/js-api-loader'
-import { getSpeciesColor } from '@/utils/helpers'
+import { getSpeciesColor, formatDate, formatTime } from '@/utils/helpers'
 
 class MapsService {
   constructor() {
@@ -150,21 +150,53 @@ class MapsService {
   }
 
   createInfoWindowContent(catchData) {
-    const date = new Date(catchData.catch_date).toLocaleDateString()
-    const time = catchData.catch_time ? new Date(`2000-01-01T${catchData.catch_time}`).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+    // Format date and time from the datetime field
+    let dateDisplay = ''
+    let timeDisplay = ''
+    
+    if (catchData.date) {
+      try {
+        const dateTime = new Date(catchData.date)
+        if (!isNaN(dateTime.getTime())) {
+          dateDisplay = formatDate(catchData.date, 'MMM dd, yyyy')
+          // Extract time in HH:mm format and format it
+          const timeString = dateTime.toTimeString().slice(0, 5)
+          timeDisplay = formatTime(timeString, 'h:mm a')
+        }
+      } catch (error) {
+        console.error('Error formatting date/time in info window:', error)
+        dateDisplay = 'Invalid date'
+      }
+    }
+    
+    // Get photo URL from photo_urls array
+    let photoUrl = ''
+    if (catchData.photo_urls) {
+      try {
+        const photoUrls = typeof catchData.photo_urls === 'string' 
+          ? JSON.parse(catchData.photo_urls) 
+          : catchData.photo_urls
+        photoUrl = photoUrls && photoUrls.length > 0 ? photoUrls[0] : ''
+      } catch (error) {
+        console.error('Error parsing photo URLs in info window:', error)
+      }
+    }
     
     return `
       <div class="info-window p-3 max-w-xs">
         <h3 class="font-semibold text-lg mb-2">${catchData.species || 'Unknown Species'}</h3>
         <div class="space-y-1 text-sm">
-          <div><strong>Date:</strong> ${date} ${time}</div>
+          ${dateDisplay ? `<div><strong>Date:</strong> ${dateDisplay}${timeDisplay ? ` at ${timeDisplay}` : ''}</div>` : ''}
+          ${catchData.species ? `<div><strong>Species:</strong> ${catchData.species}</div>` : ''}
           ${catchData.length ? `<div><strong>Length:</strong> ${catchData.length}"</div>` : ''}
           ${catchData.weight ? `<div><strong>Weight:</strong> ${catchData.weight} lbs</div>` : ''}
+          ${catchData.location ? `<div><strong>Location:</strong> ${catchData.location}</div>` : ''}
           ${catchData.depth ? `<div><strong>Depth:</strong> ${catchData.depth} ft</div>` : ''}
           ${catchData.lure_type ? `<div><strong>Lure:</strong> ${catchData.lure_type}</div>` : ''}
-          ${catchData.water_temp ? `<div><strong>Water Temp:</strong> ${catchData.water_temp}°F</div>` : ''}
+          ${catchData.water_temperature ? `<div><strong>Water Temp:</strong> ${catchData.water_temperature}°F</div>` : ''}
+          ${catchData.weather_conditions ? `<div><strong>Weather:</strong> ${catchData.weather_conditions}</div>` : ''}
         </div>
-        ${catchData.photo_url ? `<img src="${catchData.photo_url}" alt="Catch photo" class="w-full h-20 object-cover rounded mt-2">` : ''}
+        ${photoUrl ? `<img src="${photoUrl}" alt="Catch photo" class="w-full h-20 object-cover rounded mt-2">` : ''}
         ${catchData.notes ? `<p class="text-xs text-gray-600 mt-2">${catchData.notes}</p>` : ''}
       </div>
     `
