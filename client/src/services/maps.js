@@ -1,4 +1,5 @@
 import { Loader } from '@googlemaps/js-api-loader'
+import { getSpeciesColor } from '@/utils/helpers'
 
 class MapsService {
   constructor() {
@@ -94,21 +95,8 @@ class MapsService {
   }
 
   createSpeciesMarker(position, species, catchData, onClick) {
-    const speciesColors = {
-      'Musky': '#8B4513',
-      'Pike': '#228B22',
-      'Bass (Smallmouth)': '#4B0082',
-      'Bass (Largemouth)': '#006400',
-      'Walleye': '#FFD700',
-      'Perch': '#FFA500',
-      'Bluegill': '#4169E1',
-      'Catfish': '#696969',
-      'Trout': '#FF69B4',
-      'Salmon': '#FA8072',
-      'Other': '#800080'
-    }
-
-    const color = speciesColors[species] || speciesColors['Other']
+    // Use centralized color system from constants.js via helpers.js
+    const color = getSpeciesColor(species)
     
     // Create custom marker element
     const markerElement = document.createElement('div')

@@ -76,6 +76,7 @@
 <script>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import mapsService from '@/services/maps'
+import { getSpeciesColor } from '@/utils/helpers'
 
 export default {
   name: 'GoogleMap',
@@ -109,27 +110,9 @@ export default {
     const userLocationCentered = ref(false)
 
     const fishSpecies = [
-      'Musky', 'Pike', 'Bass(Smallmouth)', 'Bass(Largemouth)', 
+      'Musky', 'Pike', 'Bass (Smallmouth)', 'Bass (Largemouth)', 
       'Walleye', 'Perch', 'Bluegill', 'Catfish', 'Trout', 'Salmon', 'Other'
     ]
-
-    const speciesColors = {
-      'Musky': '#FF6B6B',
-      'Pike': '#4ECDC4', 
-      'Bass(Smallmouth)': '#45B7D1',
-      'Bass(Largemouth)': '#96CEB4',
-      'Walleye': '#FFEAA7',
-      'Perch': '#DDA0DD',
-      'Bluegill': '#87CEEB',
-      'Catfish': '#F4A261',
-      'Trout': '#E9C46A',
-      'Salmon': '#F76C6C',
-      'Other': '#95A5A6'
-    }
-
-    const getSpeciesColor = (species) => {
-      return speciesColors[species] || speciesColors['Other']
-    }
 
     // Get user's current position using geolocation API
     const getCurrentPosition = () => {
@@ -305,7 +288,7 @@ export default {
         
         console.log(`Creating marker for catch ${catch_.id} with lat: ${lat} (type: ${typeof lat}), lng: ${lng} (type: ${typeof lng})`)
 
-        // Create custom marker element
+        // Create custom marker element using the centralized getSpeciesColor function
         const markerElement = document.createElement('div')
         markerElement.className = 'custom-marker'
         markerElement.innerHTML = `
@@ -335,7 +318,7 @@ export default {
         // Create LatLng object to ensure proper coordinate format
         const position = new google.maps.LatLng(lat, lng)
         
-        // Test with standard marker first to verify basic functionality
+        // Create standard marker with correct species color from constants.js
         const marker = new google.maps.Marker({
           map: map.value,
           position: position,

@@ -374,6 +374,7 @@
 <script>
 import { ref, watch, computed } from 'vue'
 import { weatherApi, catchesApi } from '@/services/api'
+import { FISH_SPECIES, LURE_TYPES } from '@/utils/constants'
 
 export default {
   name: 'LogCatchModal',
@@ -409,16 +410,11 @@ export default {
     const isCreateMode = computed(() => currentMode.value === 'create')
     const isReadOnly = computed(() => isViewMode.value)
 
-    const fishSpecies = [
-      'Musky', 'Pike', 'Bass(Smallmouth)', 'Bass(Largemouth)', 
-      'Walleye', 'Perch', 'Bluegill', 'Catfish', 'Trout', 'Salmon', 'Other'
-    ]
+    // Use fish species from constants to ensure consistency with colors
+    const fishSpecies = FISH_SPECIES.map(species => species.name)
 
-    const lureTypes = [
-      'Bucktail', 'Spoon', 'Topwater', 'Crankbait', 'Spinnerbait', 
-      'Jig', 'Swimbait', 'Soft Plastic', 'Drop Shot', 'Rapala', 
-      'Rattle Trap', 'Live Bait', 'Other'
-    ]
+    // Use lure types from constants for consistency
+    const lureTypes = LURE_TYPES.map(lure => lure.name)
 
     const formData = ref({
       // Basic catch info
