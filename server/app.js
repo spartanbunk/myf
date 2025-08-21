@@ -13,6 +13,7 @@ const usersRoutes = require('./routes/users');
 const weatherRoutes = require('./routes/weather');
 const uploadRoutes = require('./routes/upload');
 const paymentsRoutes = require('./routes/payments');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -61,6 +62,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 handler
 app.use((req, res) => {

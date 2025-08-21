@@ -41,24 +41,14 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'myf_password'
 });
 
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Access token is required' });
-  }
-
-  const token = authHeader.substring(7);
-  
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired access token' });
-  }
-};
+// Import role-based authentication middleware
+const { 
+  authenticateToken, 
+  requireRole, 
+  requireSubscription, 
+  checkCatchLimit,
+  requireOwnership 
+} = require('../middleware/roleAuth');
 
 // Validation middleware
 const validateCatch = [
@@ -214,7 +204,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 });
 
 // POST /api/catches - Create a new catch
-router.post('/', authenticateToken, upload.single('photo'), async (req, res) => {
+router.post('/', authenticateToken, checkCatchLimit, upload.single('photo'), async (req, res) => {
   try {
     // Manual validation for multipart form data
     const errors = [];
@@ -313,7 +303,7 @@ router.post('/', authenticateToken, upload.single('photo'), async (req, res) => 
 });
 
 // PUT /api/catches/:id - Update a catch
-router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) => {
+router.put('/:id', authenticateToken, requireOwnership(), upload.single('photo'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -426,7 +416,7 @@ router.put('/:id', authenticateToken, upload.single('photo'), async (req, res) =
 });
 
 // DELETE /api/catches/:id - Delete a catch
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, requireOwnership(), async (req, res) => {
   try {
     const { id } = req.params;
 

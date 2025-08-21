@@ -58,6 +58,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('@/views/Admin.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
     path: '/test-catchcard',
     name: 'CatchCardTest',
     component: () => import('@/components/test/CatchCardTest.vue'),
@@ -94,9 +100,22 @@ router.beforeEach(async (to, from, next) => {
         name: 'Login',
         query: { redirect: to.fullPath }
       })
-    } else {
-      next()
+      return
     }
+    
+    // Check if route requires admin access
+    if (to.matched.some(record => record.meta.requiresAdmin)) {
+      const user = authStore.userProfile
+      
+      if (!user || user.role !== 'admin') {
+        // Redirect to dashboard if not admin
+        alert('Access denied. Admin privileges required.')
+        next({ name: 'Dashboard' })
+        return
+      }
+    }
+    
+    next()
   } else {
     // Public route
     next()

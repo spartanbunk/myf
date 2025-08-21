@@ -133,10 +133,10 @@ router.post('/login', validateLogin, async (req, res) => {
     // Store refresh token in Redis (7 days expiration)
     await setCached(`refresh_token:${user.id}`, refreshToken, 7 * 24 * 60 * 60);
 
-    // Parse username to get first and last name
+    // Parse username to get first and last name if not set individually
     const nameParts = user.username ? user.username.split(' ') : ['', ''];
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
+    const firstName = user.first_name || nameParts[0] || '';
+    const lastName = user.last_name || nameParts.slice(1).join(' ') || '';
 
     res.json({
       message: 'Login successful',
@@ -145,7 +145,14 @@ router.post('/login', validateLogin, async (req, res) => {
         email: user.email,
         firstName: firstName,
         lastName: lastName,
-        username: user.username
+        username: user.username,
+        displayName: user.display_name,
+        role: user.role,
+        accountStatus: user.account_status,
+        subscriptionPlan: user.subscription_plan,
+        subscriptionTier: user.subscription_tier,
+        catchesCount: user.catches_count,
+        isProfilePublic: user.is_profile_public
       },
       accessToken,
       refreshToken
@@ -236,17 +243,24 @@ router.get('/me', async (req, res) => {
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
 
-    // Get user from database
-    const result = await pool.query('SELECT id, email, username FROM users WHERE id = $1', [decoded.userId]);
+    // Get user from database with all relevant fields
+    const result = await pool.query(
+      `SELECT id, email, username, first_name, last_name, display_name,
+              role, account_status, subscription_plan, subscription_tier,
+              catches_count, is_profile_public
+       FROM users WHERE id = $1 AND account_status = 'active'`, 
+      [decoded.userId]
+    );
+    
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
     const user = result.rows[0];
 
-    // Parse username to get first and last name
+    // Parse username to get first and last name if not set individually
     const nameParts = user.username ? user.username.split(' ') : ['', ''];
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
+    const firstName = user.first_name || nameParts[0] || '';
+    const lastName = user.last_name || nameParts.slice(1).join(' ') || '';
 
     res.json({
       user: {
@@ -254,7 +268,14 @@ router.get('/me', async (req, res) => {
         email: user.email,
         firstName: firstName,
         lastName: lastName,
-        username: user.username
+        username: user.username,
+        displayName: user.display_name,
+        role: user.role,
+        accountStatus: user.account_status,
+        subscriptionPlan: user.subscription_plan,
+        subscriptionTier: user.subscription_tier,
+        catchesCount: user.catches_count,
+        isProfilePublic: user.is_profile_public
       }
     });
 

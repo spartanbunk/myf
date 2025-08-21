@@ -84,6 +84,17 @@
                 >
                   Profile
                 </router-link>
+                
+                <!-- Admin Menu Item -->
+                <router-link 
+                  v-if="user?.role === 'admin'"
+                  to="/admin" 
+                  @click="showUserMenu = false"
+                  class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100 font-semibold"
+                >
+                  🛡️ Admin Dashboard
+                </router-link>
+                
                 <hr class="border-gray-100">
                 <button 
                   @click="handleLogout"

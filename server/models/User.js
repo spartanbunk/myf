@@ -5,10 +5,46 @@ class User {
   constructor(userData) {
     this.id = userData.id;
     this.email = userData.email;
-    this.firebase_uid = userData.firebase_uid;
     this.username = userData.username;
-    this.subscription_status = userData.subscription_status || 'free';
+    this.password = userData.password;
+    
+    // Role and account status
+    this.role = userData.role || 'angler';
+    this.account_status = userData.account_status || 'active';
+    this.is_verified = userData.is_verified || false;
+    
+    // Enhanced subscription system
+    this.subscription_plan = userData.subscription_plan || 'free';
+    this.subscription_tier = userData.subscription_tier || 1;
     this.subscription_expires_at = userData.subscription_expires_at;
+    this.subscription_start_date = userData.subscription_start_date;
+    this.trial_ends_at = userData.trial_ends_at;
+    this.stripe_customer_id = userData.stripe_customer_id;
+    this.catch_limit_monthly = userData.catch_limit_monthly || 5;
+    
+    // Profile fields
+    this.first_name = userData.first_name;
+    this.last_name = userData.last_name;
+    this.display_name = userData.display_name;
+    this.bio = userData.bio;
+    this.profile_picture_url = userData.profile_picture_url;
+    
+    // Privacy settings
+    this.is_profile_public = userData.is_profile_public || false;
+    this.show_location_on_catches = userData.show_location_on_catches || false;
+    this.show_catch_stats = userData.show_catch_stats !== false; // Default true
+    
+    // Preferences
+    this.preferred_units = userData.preferred_units || 'imperial';
+    this.theme_preference = userData.theme_preference || 'auto';
+    
+    // Analytics
+    this.last_login_at = userData.last_login_at;
+    this.total_fishing_days = userData.total_fishing_days || 0;
+    this.biggest_catch_weight = userData.biggest_catch_weight;
+    this.biggest_catch_species = userData.biggest_catch_species;
+    
+    // System fields
     this.catches_count = userData.catches_count || 0;
     this.created_at = userData.created_at;
     this.updated_at = userData.updated_at;
@@ -19,17 +55,19 @@ class User {
     try {
       const {
         email,
-        firebase_uid,
+        password,
+        first_name,
+        last_name,
         username,
-        password_hash,
-        subscription_status = 'free'
+        role = 'angler',
+        subscription_plan = 'free'
       } = userData;
 
       const result = await query(
-        `INSERT INTO users (email, firebase_uid, username, subscription_status)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO users (email, password, first_name, last_name, username, role, subscription_plan, subscription_tier, catch_limit_monthly, is_verified)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *`,
-        [email, firebase_uid, username, subscription_status]
+        [email, password, first_name, last_name, username, role, subscription_plan, 1, 5, false]
       );
 
       return new User(result.rows[0]);
@@ -37,9 +75,6 @@ class User {
       if (error.code === '23505') { // Unique violation
         if (error.constraint === 'users_email_key') {
           throw new Error('Email already exists');
-        }
-        if (error.constraint === 'users_firebase_uid_key') {
-          throw new Error('Firebase UID already exists');
         }
       }
       throw error;
@@ -74,26 +109,34 @@ class User {
     }
   }
 
-  // Find user by Firebase UID
-  static async findByFirebaseUid(firebaseUid) {
-    try {
-      const result = await query(
-        'SELECT * FROM users WHERE firebase_uid = $1',
-        [firebaseUid]
-      );
-
-      return result.rows.length > 0 ? new User(result.rows[0]) : null;
-    } catch (error) {
-      throw error;
-    }
+  // Check if user has permission for a specific action
+  hasPermission(requiredRole) {
+    const roleLevels = { angler: 1, admin: 2 };
+    const userLevel = roleLevels[this.role] || 0;
+    const requiredLevel = roleLevels[requiredRole] || 0;
+    
+    return userLevel >= requiredLevel;
+  }
+  
+  // Check subscription tier access
+  hasSubscriptionAccess(requiredTier) {
+    const tierMap = { free: 1, pro: 2, master: 3 };
+    const userTier = tierMap[this.subscription_plan] || 1;
+    const required = tierMap[requiredTier] || 1;
+    
+    return userTier >= required;
   }
 
   // Update user
   async update(updateData) {
     try {
       const allowedFields = [
-        'username', 'email', 'subscription_status', 
-        'subscription_expires_at'
+        'username', 'email', 'first_name', 'last_name', 'display_name', 'bio',
+        'profile_picture_url', 'is_profile_public', 'show_location_on_catches',
+        'show_catch_stats', 'preferred_units', 'theme_preference',
+        'subscription_plan', 'subscription_tier', 'subscription_expires_at',
+        'subscription_start_date', 'trial_ends_at', 'stripe_customer_id',
+        'catch_limit_monthly', 'account_status', 'is_verified'
       ];
 
       const updates = [];
@@ -303,7 +346,7 @@ class User {
 
   // Check subscription status
   isSubscriptionActive() {
-    if (this.subscription_status === 'free') {
+    if (this.subscription_plan === 'free') {
       return true; // Free accounts are always "active"
     }
 
@@ -313,38 +356,52 @@ class User {
 
     return new Date(this.subscription_expires_at) > new Date();
   }
+  
+  // Check if user can log more catches
+  canLogCatch() {
+    if (this.subscription_plan === 'pro' || this.subscription_plan === 'master') {
+      return true; // Unlimited for paid tiers
+    }
+    
+    return this.catches_count < this.catch_limit_monthly;
+  }
+  
+  // Get remaining catch allowance for free tier
+  getRemainingCatches() {
+    if (this.subscription_plan === 'pro' || this.subscription_plan === 'master') {
+      return null; // Unlimited
+    }
+    
+    return Math.max(0, this.catch_limit_monthly - this.catches_count);
+  }
 
   // Get subscription info
   getSubscriptionInfo() {
     return {
-      status: this.subscription_status,
+      plan: this.subscription_plan,
+      tier: this.subscription_tier,
       expires_at: this.subscription_expires_at,
+      start_date: this.subscription_start_date,
+      trial_ends_at: this.trial_ends_at,
       is_active: this.isSubscriptionActive(),
-      catches_limit: this.subscription_status === 'free' ? 10 : null,
-      current_catches: this.catches_count
+      can_log_catch: this.canLogCatch(),
+      catches_limit: this.subscription_plan === 'free' ? this.catch_limit_monthly : null,
+      remaining_catches: this.getRemainingCatches(),
+      current_catches: this.catches_count,
+      stripe_customer_id: this.stripe_customer_id
     };
   }
 
   // Convert to JSON (remove sensitive data)
   toJSON() {
     const {
-      id,
-      email,
-      username,
-      subscription_status,
-      subscription_expires_at,
-      catches_count,
-      created_at
+      password,
+      stripe_customer_id,
+      ...publicData
     } = this;
 
     return {
-      id,
-      email,
-      username,
-      subscription_status,
-      subscription_expires_at,
-      catches_count,
-      created_at,
+      ...publicData,
       subscription_info: this.getSubscriptionInfo()
     };
   }

@@ -152,4 +152,11 @@ export const paymentsApi = {
   getPlans: () => api.get('/payments/plans')
 }
 
+export const adminApi = {
+  getStats: () => api.get('/admin/stats'),
+  getUsers: (params) => api.get('/admin/users', { params }),
+  updateUserRole: (userId, role) => api.put(`/admin/users/${userId}/role`, { role }),
+  updateUserStatus: (userId, account_status) => api.put(`/admin/users/${userId}/status`, { account_status })
+}
+
 export default api
